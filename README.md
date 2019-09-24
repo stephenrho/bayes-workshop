@@ -7,11 +7,11 @@
 
 ## Description
 
-This workshop will introduce attendees to Bayesian data analysis and the `R` package [`brms`](https://cran.r-project.org/web/packages/brms/index.html). `brms` provides a flexible interface to the sampling routines in the [`Stan`](https://mc-stan.org/) program. It can handle a range of models and data types using `R`'s formula syntax. We will cover a range of examples with a particular focus on (generalized) linear mixed effects models. These examples will cover prior distributions, assessing model fit, and model comparison. The workshop will also introduce the `Stan` model language for more 'bespoke' models.
+This workshop will introduce attendees to Bayesian data analysis and the `R` package [`brms`](https://cran.r-project.org/web/packages/brms/index.html). `brms` stands for 'Bayesian Regression Models using [`Stan`](https://mc-stan.org/)' and, as the name suggests, it provides a flexible interface to `Stan`, which is a powerful program for fitting Bayesian models. `brms` can handle a wide range of models and data types and this workshop will cover several example analyses, with a particular focus on (generalized) linear mixed effects models. These example analyses will cover the setting of prior distributions on model parameters, assessing model convergence and fit, and model comparison. The workshop will also introduce the `Stan` model language so attendees can start to implement their own bespoke models, as well as better understand what `brms` is doing 'under the hood'.
 
 ## Objectives
 
-1. To give a conceptual understanding of Bayesian data analysis and its advantages
+1. To give a conceptual understanding of Bayesian data analysis
 2. Introduce the `brms` package for `R`
 3. Work on several example analyses
     - specifying the model
@@ -23,10 +23,10 @@ This workshop will introduce attendees to Bayesian data analysis and the `R` pac
 
 ## Requirements
 
-(This will be added to)
+(More may be added here)
 
-- R
-- R Studio
+- [R](https://www.r-project.org/)
+- [R Studio](https://www.rstudio.com/)
 
 In RStudio type:
 
