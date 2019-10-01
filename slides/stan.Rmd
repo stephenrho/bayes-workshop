@@ -1,0 +1,22 @@
+---
+title: "`Stan`: Overview and Examples"
+author: "Stephen Rhodes - srhodes@research.baycrest.org"
+date: 'Last updated: `r Sys.Date()`'
+output:
+  ioslides_presentation:
+    widescreen: yes
+  beamer_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T)
+```
+
+## Things to cover in these slides...
+
+- a basic stan model
+- rstan
+- a more complicated stan model (e.g. 2D mixture?)
+
+
+

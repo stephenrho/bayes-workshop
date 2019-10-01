@@ -1,0 +1,43 @@
+---
+title: "`brms`: Overview and Examples"
+author: "Stephen Rhodes - srhodes@research.baycrest.org"
+date: 'Last updated: `r Sys.Date()`'
+output:
+  ioslides_presentation:
+    widescreen: yes
+  beamer_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T)
+```
+
+## Introduction
+
+`brms` = Bayesian Regression Models using Stan
+
+
+## Things to cover in these slides...
+
+- R formula syntax refresher
+- model families
+- ljk prior for correlations
+- lme model
+- distributional model
+- troubleshooting
+- savage dickey and bridgesampling methods for calculating bayes factors
+- loo, waic
+
+## R formula syntax
+
+|  term  | meaning | 
+| ------ | ------- |
+| `y ~ 1 + x` | `y` predicted by `x` (1 = intercept, included by default) |
+| `y ~ 1 + x + z + x:z` | two variables and interaction (equivalent to `y ~ x*z`) | 
+| `(1 | g)` | allow the intercept to vary by levels of `g` | 
+| `(1 + x | g)` | allow intercept and slope to vary and model correlation between these 'random effects' |
+| `(0 + x | g)` | fixed intercept, random slope |
+| `(1 + x || g)` | model random effects but not correlation (fix $\rho$ to 0) |
+
+
+
