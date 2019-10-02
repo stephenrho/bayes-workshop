@@ -1,4 +1,5 @@
 ### ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ 
+### brms - example 1
 ### In this example we use the 'sleepstudy' data set
 ### which contains the average reaction times of 
 ### participants with 0-9 days of sleep deprivation
