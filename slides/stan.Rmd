@@ -5,7 +5,7 @@ date: 'Last updated: `r Sys.Date()`'
 output:
   ioslides_presentation:
     widescreen: yes
-  beamer_presentation: default
+  highlight: tango
 ---
 
 ```{r setup, include=FALSE}
@@ -17,6 +17,177 @@ knitr::opts_chunk$set(echo = T)
 - a basic stan model
 - rstan
 - a more complicated stan model (e.g. 2D mixture?)
+- vectorizing/ speeding up programs?
 
+# Anatomy of a Stan model
+
+## Anatomy of a Stan model
+
+Necessary blocks (more info [here](https://mc-stan.org/docs/2_18/reference-manual/blocks-chapter.html))
+
+```
+data {
+  \\ what we are modeling
+}
+parameters {
+  \\ the variables being sampled by Stan
+}
+model {
+  \\ priors and likelihood function
+}
+```
+
+## Anatomy of a Stan model
+
+Optional blocks (more info [here](https://mc-stan.org/docs/2_18/reference-manual/blocks-chapter.html))
+
+```
+functions {
+  \\ user defined functions
+}
+transformed data {
+  \\ as the name suggests
+}
+transformed parameters {
+  \\ sometimes useful to speed up program
+}
+generated quantities {
+  \\ does things with the samples 
+  \\ e.g., calculate log likelihood, posterior predictions
+}
+```
+
+## `sleepstudy` Example
+
+```{r}
+sleepstudy <- read.csv("../examples/sleepstudy.csv")
+head(sleepstudy)
+```
+
+## `data`
+
+```
+data {
+  int<lower=0> N;             // n observations
+  vector[N] y;                // reaction times
+  matrix[N,2] x;              // design matrix (intercept, days)
+  int<lower=0> S;             // n subjects
+  int<lower=1,upper=S> id[N]; // subject ids
+}
+```
+More on [data types](https://mc-stan.org/docs/2_18/reference-manual/data-types-chapter.html)
+
+## `parameters`
+
+Below are the parameters for the simple (non-hierarchical) regression model (model 1)
+
+```
+parameters {
+  vector[2] beta;             // fixed effects
+  real<lower=0> sigma;        // residual SD
+}
+```
+
+## `model`
+
+```
+model {
+  // priors
+  sigma ~ cauchy(0,50);
+  beta[1] ~ normal(300,100);
+  beta[2] ~ normal(0,50);
+  // likelihood
+  y ~ normal(x * beta, sigma);
+}
+```
+
+- `~` sampling statement (is distributed as)
+- `=` assignment
+
+## `generated quantities`
+
+```
+generated quantities {
+  vector[N] log_lik;      // log likelihood matrix
+  vector[N] y_rep;        // posterior predictions
+  for (i in 1:N){
+    log_lik[i] = normal_lpdf(y[i] | x[i] * beta, sigma);
+    y_rep[i] = normal_rng(x[i] * beta, sigma);
+  }
+}
+```
+
+- `log_lik`: log likelihood matrix. Used for calculating loo, waic
+- `y_rep`: samples from the posterior predictive distribution
+
+## `.stan`
+
+- These blocks are all bundled into a `.stan` file
+- See "examples/stan-models/example1-m1.stan" for this example program
+- We can use the `rstan` package to get samples
+
+# The `rstan` package
+
+## `rstan`
+
+Is the interface between `R` and `Stan`
+
+Steps:
+
+1. Put data into a list
+2. Call the `stan()` function 
+3. Do stuff with the samples
+
+## Data list with `sleepstudy`
+
+Everything in the `data` block should appear here
+
+```r
+data_list = list(
+  N = nrow(sleepstudy),
+  y = sleepstudy$Reaction,
+  x = model.matrix(~ Days, data = sleepstudy),
+  S = length(unique(sleepstudy$Subject)),
+  id = as.numeric(sleepstudy$Subject) # ids should go from 1:S
+)
+```
+
+```{r}
+head(model.matrix(~ Days, data = sleepstudy))
+```
+
+## Run samples with `stan()`
+
+```r
+m1_fit <- stan(
+  file = "examples/stan-models/example1-m1.stan",
+  data = data_list,
+  chains = 4,
+  warmup = 1000,
+  iter = 2000,
+  cores = 4
+)
+```
+
+This runs 4 separate chains for 2000 samples (each) and discards the first 1000 (4000 post-warmup samples total)
+
+## Do stuff with the samples
+
+- `plot(m1_fit, pars="beta")` plots posterior mean, 80% and 95% credible intervals
+- `traceplot(m1_fit, pars="beta")` plots chains
+- `yrep <- extract(m1_fit, pars = "y_rep")[[1]]` extract samples
+- `bridge_sampler(m1_fit)` calculate marginal likelihood (using `bridgesampling` package)
+- Leave-one-out cross-validation (using `loo` package)
+    - `log_lik_1 = extract_log_lik(m1_fit, merge_chains = F)`
+    - `r_eff_1 = relative_eff(exp(log_lik_1))`
+    - `loo_1 = loo(log_lik_1, r_eff = r_eff_1)`
+
+## stan-example1.R
+
+Run through example script and .stan programs...
+
+# A more complicated examples
+
+## 2D mixture model
 
 

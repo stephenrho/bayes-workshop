@@ -17,7 +17,6 @@ model {
   beta[2] ~ normal(0,50);
   // likelihood
   y ~ normal(x * beta, sigma);
-  
 }
 generated quantities {
   vector[N] log_lik;      // log likelihood matrix

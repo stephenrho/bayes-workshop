@@ -13,6 +13,7 @@ sleepstudy$Subject = as.factor(sleepstudy$Subject)
 
 rstan_options(auto_write = TRUE)
 
+# put data in a list
 data_list = list(
   N = nrow(sleepstudy),
   y = sleepstudy$Reaction,
@@ -38,10 +39,10 @@ plot(m1_fit, pars="sigma")
 (fit_summary_1 = summary(m1_fit))
 
 # check r-hats
-all(fit_summary_1$summary[,"Rhat"] < 1.1, na.rm = T)
+all(fit_summary_1$summary[,"Rhat"] < 1.1, na.rm = T) # or rhat(m1_fit)
 max(fit_summary_1$summary[,"Rhat"], na.rm = T)
 
-traceplot(m1_fit)
+traceplot(m1_fit, pars="beta")
 
 # model 2
 m2_fit <- stan(

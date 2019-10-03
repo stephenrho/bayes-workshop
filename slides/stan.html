@@ -100,7 +100,7 @@ slide:not(.current) .plotly.html-widget{
       <h1 data-config-title><!-- populated from slide_config.json --></h1>
       <h2 data-config-subtitle><!-- populated from slide_config.json --></h2>
       <p data-config-presenter><!-- populated from slide_config.json --></p>
-            <p style="margin-top: 6px; margin-left: -2px;">Last updated: 2019-09-30</p>
+            <p style="margin-top: 6px; margin-left: -2px;">Last updated: 2019-10-02</p>
           </hgroup>
   </slide>
 
@@ -110,7 +110,184 @@ slide:not(.current) .plotly.html-widget{
 <li>a basic stan model</li>
 <li>rstan</li>
 <li>a more complicated stan model (e.g. 2D mixture?)</li>
-</ul></article></slide>
+</ul>
+
+</article></slide><slide class="segue dark nobackground level1"><hgroup class = 'auto-fadein'><h2>Anatomy of a Stan model</h2></hgroup><article  id="anatomy-of-a-stan-model">
+
+</article></slide><slide class=""><hgroup><h2>Anatomy of a Stan model</h2></hgroup><article  id="anatomy-of-a-stan-model-1">
+
+<p>Necessary blocks (more info <a href='https://mc-stan.org/docs/2_18/reference-manual/blocks-chapter.html' title=''>here</a>)</p>
+
+<pre >data {
+  \\ what we are modeling
+}
+parameters {
+  \\ the variables being sampled by Stan
+}
+model {
+  \\ priors and likelihood function
+}</pre>
+
+</article></slide><slide class=""><hgroup><h2>Anatomy of a Stan model</h2></hgroup><article  id="anatomy-of-a-stan-model-2">
+
+<p>Optional blocks (more info <a href='https://mc-stan.org/docs/2_18/reference-manual/blocks-chapter.html' title=''>here</a>)</p>
+
+<pre >functions {
+  \\ user defined functions
+}
+transformed data {
+  \\ as the name suggests
+}
+transformed parameters {
+  \\ sometimes useful to speed up program
+}
+generated quantities {
+  \\ does things with the samples 
+  \\ e.g., calculate log likelihood, posterior predictions
+}</pre>
+
+</article></slide><slide class=""><hgroup><h2><code>sleepstudy</code> Example</h2></hgroup><article  id="sleepstudy-example">
+
+<pre class = 'prettyprint lang-r'>sleepstudy &lt;- read.csv(&quot;../examples/sleepstudy.csv&quot;)
+head(sleepstudy)</pre>
+
+<pre >##   Reaction Days Subject
+## 1 249.5600    0     308
+## 2 258.7047    1     308
+## 3 250.8006    2     308
+## 4 321.4398    3     308
+## 5 356.8519    4     308
+## 6 414.6901    5     308</pre>
+
+</article></slide><slide class=""><hgroup><h2><code>data</code></h2></hgroup><article  id="data">
+
+<pre >data {
+  int&lt;lower=0&gt; N;             // n observations
+  vector[N] y;                // reaction times
+  matrix[N,2] x;              // design matrix (intercept, days)
+  int&lt;lower=0&gt; S;             // n subjects
+  int&lt;lower=1,upper=S&gt; id[N]; // subject ids
+}</pre>
+
+<p>More on <a href='https://mc-stan.org/docs/2_18/reference-manual/data-types-chapter.html' title=''>data types</a></p>
+
+</article></slide><slide class=""><hgroup><h2><code>parameters</code></h2></hgroup><article  id="parameters">
+
+<p>Below are the parameters for the simple (non-hierarchical) regression model (model 1)</p>
+
+<pre >parameters {
+  vector[2] beta;             // fixed effects
+  real&lt;lower=0&gt; sigma;        // residual SD
+}</pre>
+
+</article></slide><slide class=""><hgroup><h2><code>model</code></h2></hgroup><article  id="model">
+
+<pre >model {
+  // priors
+  sigma ~ cauchy(0,50);
+  beta[1] ~ normal(300,100);
+  beta[2] ~ normal(0,50);
+  // likelihood
+  y ~ normal(x * beta, sigma);
+}</pre>
+
+<ul>
+<li><code>~</code> sampling statement (is distributed as)</li>
+<li><code>=</code> assignment</li>
+</ul>
+
+</article></slide><slide class=""><hgroup><h2><code>generated quantities</code></h2></hgroup><article  id="generated-quantities">
+
+<pre >generated quantities {
+  vector[N] log_lik;      // log likelihood matrix
+  vector[N] y_rep;        // posterior predictions
+  for (i in 1:N){
+    log_lik[i] = normal_lpdf(y[i] | x[i] * beta, sigma);
+    y_rep[i] = normal_rng(x[i] * beta, sigma);
+  }
+}</pre>
+
+<ul>
+<li><code>log_lik</code>: log likelihood matrix. Used for calculating loo, waic</li>
+<li><code>y_rep</code>: samples from the posterior predictive distribution</li>
+</ul>
+
+</article></slide><slide class=""><hgroup><h2><code>.stan</code></h2></hgroup><article  id="stan">
+
+<ul>
+<li>These blocks are all bundled into a <code>.stan</code> file</li>
+<li>See &quot;examples/stan-models/example1-m1.stan&quot; for this example program</li>
+<li>We can use the <code>rstan</code> package to get samples</li>
+</ul>
+
+</article></slide><slide class="segue dark nobackground level1"><hgroup class = 'auto-fadein'><h2>The <code>rstan</code> package</h2></hgroup><article  id="the-rstan-package">
+
+</article></slide><slide class=""><hgroup><h2><code>rstan</code></h2></hgroup><article  id="rstan">
+
+<p>Is the interface between <code>R</code> and <code>Stan</code></p>
+
+<p>Steps:</p>
+
+<ol>
+<li>Put data into a list</li>
+<li>Call the <code>stan()</code> function</li>
+<li>Do stuff with the samples</li>
+</ol>
+
+</article></slide><slide class=""><hgroup><h2>Data list with <code>sleepstudy</code></h2></hgroup><article  id="data-list-with-sleepstudy">
+
+<p>Everything in the <code>data</code> block should appear here</p>
+
+<pre class = 'prettyprint lang-r'>data_list = list(
+  N = nrow(sleepstudy),
+  y = sleepstudy$Reaction,
+  x = model.matrix(~ Days, data = sleepstudy),
+  S = length(unique(sleepstudy$Subject)),
+  id = as.numeric(sleepstudy$Subject) # ids should go from 1:S
+)</pre>
+
+<pre class = 'prettyprint lang-r'>head(model.matrix(~ Days, data = sleepstudy))</pre>
+
+<pre >##   (Intercept) Days
+## 1           1    0
+## 2           1    1
+## 3           1    2
+## 4           1    3
+## 5           1    4
+## 6           1    5</pre>
+
+</article></slide><slide class=""><hgroup><h2>Run samples with <code>stan()</code></h2></hgroup><article  id="run-samples-with-stan">
+
+<pre class = 'prettyprint lang-r'>m1_fit &lt;- stan(
+  file = &quot;examples/stan-models/example1-m1.stan&quot;,
+  data = data_list,
+  chains = 4,
+  warmup = 1000,
+  iter = 2000,
+  cores = 4
+)</pre>
+
+<p>This runs 4 separate chains for 2000 samples (each) and discards the first 1000 (4000 post-warmup samples total)</p>
+
+</article></slide><slide class=""><hgroup><h2>Do stuff with the samples</h2></hgroup><article  id="do-stuff-with-the-samples">
+
+<ul>
+<li><code>plot(m1_fit, pars=&quot;beta&quot;)</code> plots posterior mean, 80% and 95% credible intervals</li>
+<li><code>traceplot(m1_fit, pars=&quot;beta&quot;)</code> plots chains</li>
+<li><code>yrep &lt;- extract(m1_fit, pars = &quot;y_rep&quot;)[[1]]</code> extract samples</li>
+<li><code>bridge_sampler(m1_fit)</code> calculate marginal likelihood (using <code>bridgesampling</code> package)</li>
+<li>Leave-one-out cross-validation (using <code>loo</code> package)
+
+<ul>
+<li><code>log_lik_1 = extract_log_lik(m1_fit, merge_chains = F)</code></li>
+<li><code>r_eff_1 = relative_eff(exp(log_lik_1))</code></li>
+<li><code>loo_1 = loo(log_lik_1, r_eff = r_eff_1)</code></li>
+</ul></li>
+</ul>
+
+</article></slide><slide class=""><hgroup><h2>stan-example1.R</h2></hgroup><article  id="stan-example1.r">
+
+<p>Run through example script and .stan programs&#8230;</p></article></slide>
 
 
   <slide class="backdrop"></slide>
