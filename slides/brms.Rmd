@@ -10,13 +10,17 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T)
+library(brms)
+
+load("../examples/brms-example1.RData")
+
 ```
 
 ## Introduction
 
 `brms` = Bayesian Regression Models using Stan
 
-
+<!--
 ## Things to cover in these slides...
 
 - R formula syntax refresher
@@ -26,12 +30,13 @@ knitr::opts_chunk$set(echo = T)
 - distributional model
 - troubleshooting
 - savage dickey and bridgesampling methods for calculating bayes factors
-- loo, waic
+- loo, waic https://www.rdocumentation.org/packages/loo/versions/2.1.0/topics/loo-glossary
+-->
 
 ## R formula syntax
 
 |  term  | meaning | 
-| ------ | ------- |
+| :------: | -------: |
 | `y ~ 1 + x` | `y` predicted by `x` (1 = intercept, included by default) |
 | `y ~ 1 + x + z + x:z` | two variables and interaction (equivalent to `y ~ x*z`) | 
 | `(1 | g)` | allow the intercept to vary by levels of `g` | 
@@ -39,5 +44,106 @@ knitr::opts_chunk$set(echo = T)
 | `(0 + x | g)` | fixed intercept, random slope |
 | `(1 + x || g)` | model random effects but not correlation (fix $\rho$ to 0) |
 
+## `brm()`
 
+```
+brm(formula, data, family = gaussian(), prior = NULL,
+  sample_prior = c("no", "yes", "only"),
+  chains = 4, iter = 2000, warmup = floor(iter/2), 
+  thin = 1, cores = getOption("mc.cores", 1L))
+```
 
+see `?brm` for more
+
+We'll work through an example with the `sleepstudy` data set from `lme4` (in sleepstudy.csv)
+
+## sleepstudy
+
+Data from a sleep deprivation study
+
+Reaction times for `r length(unique(sleepstudy$Subject))` participants following 0-9 Days of sleep deprivation
+
+```{r}
+head(sleepstudy)
+```
+
+## sleepstudy
+
+```{r, echo=F}
+plot(NA, xlim=c(0,9), ylim=c(190,500), axes=F, xlab="Days", ylab="Reaction", main="The sleepstudy dataset")
+axis(1); axis(2)
+x=lapply(unique(sleepstudy$Subject), 
+       function(x) with(subset(sleepstudy, Subject==x), lines(Days, Reaction, col='grey')))
+with(aggregate(Reaction~Days, FUN = mean, data = sleepstudy), points(Days, Reaction, pch=16, type='b', col='red'))
+legend(0, 500, legend = c("Individual", "Average"), col = c("grey", "red"), pch = c(NA, 16), lty=c(1,1))
+
+```
+
+## `get_prior()`
+
+Find parameters to set priors for (below are the defaults used by brms)
+
+```{r}
+get_prior(Reaction ~ Days, data = sleepstudy, family = gaussian)
+```
+
+We'll start with a simple model (not acknowledging the clustering in the data)
+
+## `set_prior()`
+
+```r
+priors = c(set_prior("normal(300, 100)", class = "Intercept"),
+           set_prior("normal(0, 50)", class = "b"),
+           set_prior("cauchy(0, 50)", class = "sigma"))
+```
+
+or
+
+```r
+priors = set_prior("normal(300, 100)", class = "Intercept") +
+           set_prior("normal(0, 50)", class = "b") +
+           set_prior("cauchy(0, 50)", class = "sigma")
+```
+
+## `brm()`
+
+```r
+m1 = brm(Reaction ~ Days, data = sleepstudy, 
+         family = gaussian, 
+         prior=priors,
+         save_all_pars=T)
+```
+
+## `brmsfit` object
+
+```{r}
+summary(m1)
+```
+
+## `brmsfit` object 
+
+```{r}
+fixef(m1)
+```
+
+```{r}
+rhat(m1)
+```
+
+## `brmsfit` object 
+
+```{r}
+plot(m1)
+```
+
+## 
+
+```{r}
+pp_check(m1, nsamples = 100)
+```
+
+## 
+
+```{r}
+marginal_effects(m1)
+```

@@ -12,12 +12,15 @@ output:
 knitr::opts_chunk$set(echo = T)
 ```
 
+<!--
 ## Things to cover in these slides...
 
 - a basic stan model
 - rstan
 - a more complicated stan model (e.g. 2D mixture?)
 - vectorizing/ speeding up programs?
+
+-->
 
 # Anatomy of a Stan model
 
@@ -186,8 +189,150 @@ This runs 4 separate chains for 2000 samples (each) and discards the first 1000 
 
 Run through example script and .stan programs...
 
-# A more complicated examples
+# A more complicated example
 
 ## 2D mixture model
 
+```{r echo=F}
 
+recall_2d = read.csv("../examples/recall-2D.csv")
+
+```
+
+```{r, echo=F}
+par(pty='s', mar=c(1,1,1,1))
+plot(NA, xlim=c(-15,15), ylim=c(-15,15), xlab="", ylab="", axes=F)
+
+for (i in 1:100){
+  with(recall_2d[i,], lines(c(px, rx), c(py, ry), lty=2, col="lightgrey"))
+  with(recall_2d[i,], points(c(px, rx), c(py, ry), type='p', col=c("black", "red")))
+}
+legend("bottomleft", legend = c("Studied", "Recalled"), col = c("black", "red"), pch=1, bty='n')
+par(pty='m', mar=c(5, 4, 4, 2) + 0.1)
+```
+
+## 2D mixture model
+
+```{r, echo=F}
+recall_2d$error = with(recall_2d, sqrt((px-rx)^2 + (py-ry)^2))
+
+with(recall_2d, hist(error, breaks=30, col="lightgreen", border=F, xlab="Distance between studied and recalled", main="Recall Error", probability = T))
+
+with(recall_2d, lines(density(error , from=0)))
+
+```
+
+## The model
+
+```
+Distribution of recalled locations = mixture of responses from memory and guesses
+```
+
+$$
+\mathbf{r}_{ij} \sim m_i \times \phi(\mathbf{p}_j, s_i) + (1 - m_i) \times \frac{1}{A}
+$$
+
+- $i$ = Individuals; $j$ = trials 
+- $\mathbf{r}$ = recalled location, $\mathbf{p}$ = presented (studied) location. 
+- $m_i$ = probability of a response from memory for individual $i$
+- $s_i$ = imprecision of memory for individual $i$
+- $A$ = area where responses are allowed
+
+## The model
+
+$$
+\mathbf{r}_{ij} \sim m_i \times \phi(\mathbf{p}_j, s_i) + (1 - m_i) \times \frac{1}{A}
+$$
+
+$$
+\mbox{logit}(m_i) \sim \mbox{Normal}(\mu_m, \sigma_m) \\
+\mbox{log}(s_i) \sim \mbox{Normal}(\mu_s, \sigma_s)
+$$
+
+We need priors for the population level parameters, $\mu_m$, $\mu_s$, $\sigma_m$, and $\sigma_s$
+
+## The data
+
+```{r}
+head(recall_2d)
+```
+
+## example2.stan
+
+```
+data {
+  int<lower=0> N;             // N observations
+  int<lower=0> S;             // number of participants
+  int<lower=1,upper=S> id[N]; // participant id
+  vector[N] p_x;              // presented x coordinate
+  vector[N] p_y;              // presented y coordinate
+  vector[N] r_x;              // recalled x coordinate
+  vector[N] r_y;              // recalled y coordinate
+  real<lower=0> A;            // for determining uniform (guess) density
+}
+```
+
+## example2.stan
+
+```
+parameters {
+  real mu_m;                  // population mean for m (logit scale)
+  real mu_s;                  // population mean for s (log scale)
+  
+  real<lower=0> sd_m;         // population sd for m (logit)
+  real<lower=0> sd_s;         // population sd for s (log)
+  
+  vector[S] m;                // individual m parameters (logit)
+  vector[S] s;                // individual s parameters (log)
+}
+```
+
+$$
+\mbox{logit}(m_i) \sim \mbox{Normal}(\mu_m, \sigma_m) \\
+\mbox{log}(s_i) \sim \mbox{Normal}(\mu_s, \sigma_s)
+$$
+
+## example2.stan
+
+```
+model {
+  // priors
+  sd_m ~ cauchy(0,2.5);
+  sd_s ~ cauchy(0,2.5);
+  mu_m ~ normal(0,5);
+  mu_s ~ normal(0,5);
+  
+  // sample individual parameters from population
+  for (i in 1:S){
+    m[i] ~ normal(mu_m, sd_m);
+    s[i] ~ normal(mu_s, sd_s);
+  }
+... // continued on next slide
+```
+
+$$
+\mbox{logit}(m_i) \sim \mbox{Normal}(\mu_m, \sigma_m) \\
+\mbox{log}(s_i) \sim \mbox{Normal}(\mu_s, \sigma_s)
+$$
+
+## example2.stan
+
+```
+  // likelihood
+  for (n in 1:N)
+    target += log_mix(inv_logit(m[id[n]]),
+                      normal_lpdf(r_x[n] | p_x[n], exp(s[id[n]])) + 
+                      normal_lpdf(r_y[n] | p_y[n], exp(s[id[n]])),
+                      log(1/A));
+}
+```
+
+Not quite the same, but equivalent to...
+
+$$
+\mathbf{r}_{ij} \sim m_i \times \phi(\mathbf{p}_j, s_i) + (1 - m_i) \times \frac{1}{A}
+$$
+
+## stan-example2.R
+
+Run through script

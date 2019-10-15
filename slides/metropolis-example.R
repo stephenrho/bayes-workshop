@@ -61,7 +61,7 @@ posterior_quantities <- function(y, prior_mean, prior_sd, known_sd = 15){
 }
 
 
-#### START HERE ----
+#### USE THE FUNCTIONS ----
 
 N = 50 # number of observations in the group
 mu_real = 110 # the 'true' mean

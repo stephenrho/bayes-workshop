@@ -3,25 +3,42 @@ title: "Introduction to Bayesian Analysis"
 author: "Stephen Rhodes - srhodes@research.baycrest.org"
 date: 'Last updated: `r Sys.Date()`'
 output:
-  beamer_presentation: default
   ioslides_presentation:
     widescreen: yes
+  beamer_presentation: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = T)
+knitr::opts_chunk$set(echo = T, warning = F, message = F)
+
+library(brms)
+library(bayesplot)
+
+load("../examples/brms-example1.RData")
 ```
 
 ## Overview
 
+- Why go Bayesian?
 - Introduction to Bayesian analysis
     - What's the purpose of Bayesian estimation?
-    - MCMC sampling (Metropolis algorithm and Gibbs)
+    - MCMC sampling
     - How good are my samples?
     - Posterior predictive checks
     - Model comparison
+    - Summarizing the posterior
     
-# Introduction to Bayesian estimation
+# Why go Bayesian?
+
+## Why go Bayesian?
+
+> - It tells you what you want to know. Given the data,
+>     - What interval contains an unobserved parameter with .95 (or some other) probability?
+>     - What's the relative weight of evidence for one model (e.g., 'null') vs. another (e.g., an alternative).
+> - We almost always have some prior knowledge of reasonable parameter values - this should be incorporated
+> - Results are not dependent on a 'sampling plan' (see, e.g., Kruschke & Liddell, 2018 for more)
+    
+# Introduction to Bayesian analysis
 
 ## Purpose
 
@@ -53,6 +70,27 @@ p(\theta \mid y) \propto p(\theta)p(y \mid \theta)
 $$
 
 **The posterior is proportional to the prior times the likelihood**
+
+<!--
+## Bayesian estimation
+
+```{r}
+
+cols = viridis::viridis(3)
+
+x = seq(-5, 5, by = .2)
+
+pr = dnorm(x, mean = 0, sd = 3)
+l = dnorm(x, mean = 0, sd = 1)
+po = pr*l
+
+plot(NA, xlim = c(-5,5), ylim = c(0, max(c(pr, l, po))))
+lines(x, pr, type='b', col=cols[1])
+lines(x, l, type='b', col=cols[2])
+lines(x, po, type='b', col=cols[3])
+
+```
+-->
 
 ## Conceptual example
 
@@ -90,18 +128,14 @@ If we had strong reason to expect that $y$ should increase with $x$ we could ins
 
 - $\beta_1 \sim \mbox{Normal}(0, 3)^{+}$
 
-
-# MCMC sampling
+# MCMC Sampling
 
 ## Why sample?
 
-> - $p(\theta \mid y)$ is a *distribution* but the shape of that distribution is not always directly attainable.
-> - For a normal prior on the mean and a normal likelihood function the posterior distribution for the mean is also a normal distribution. 
-> - The normal is a *conjugate prior* for the normal likelihood. (The Beta distribution is conjugate for the binomial distribution).
-> - For most models an analytic expression of the posterior distribution is not possible.
+> - The posterior, $p(\theta \mid y)$, is a *distribution* but the shape of that distribution is not always directly attainable (i.e., no analytic expression).
 > - In these situations sampling is needed to approximate the posterior distribution. This is what is offered by software like JAGS, BUGS, Stan etc.
 
-## Intro to MCMC
+## MCMC
 
 Markov Chain Monte Carlo
 
@@ -110,30 +144,16 @@ Markov Chain Monte Carlo
 
 Goal of MCMC - to approximate a target distribution
 
-## The Metropolis Algorithm
+## MCMC
 
-- We want to approximate $p(\theta \mid y)$ which is proportional to the prior times the likelihood. 
-- The Metropolis algorithm allows us to explore the space of possible parameter values. Values are "visited" in proportion to their density under the posterior.
+- The slides [mcmc](mcmc.html) introduce the basics of MCMC in Baysian analyses via a simple Metropolis Hastings algorithm (see metropolis.example.R)
+- The important points are:
+    - MCMC generates a chain of samples
+    - Once the chain has *converged* on a stable distribution, parameter values are visited in proportion to their posterior probability/ density
 
-## The Metropolis Algorithm
+# How accurate is the MCMC chain?
 
-> 1. Select a stating point in the parameter space. This is $\theta_{\text{current}}$
-> 2. A move in parameter space is suggested from a *proposal distribution*. This is $\theta_{\text{new}} = \theta_{\text{current}} + \Delta\theta$
-> 3. The probability that we accept the proposed move is: $p_{\text{accept}} = \min\left(\frac{f(\theta_{\text{new}})}{f(\theta_{\text{current}})}, 1\right)$
-> 4. Sample a uniform number between 0 and 1. If this number is smaller than $p_{\text{accept}}$ then we accept the proposal and $\theta_{\text{new}}$ becomes $\theta_{\text{current}}$ for the next step. If not we stick with the $\theta_{\text{current}}$ we had originally.
-> 5. Repeat steps 2-4 many times and record $\theta_{\text{current}}$ at the beginning of each loop.
-
-Note for our Bayesian purposes $f(x) = p(x)p(y \mid x)$.
-
-## The Metropolis Algorithm
-
-Why does it work?
-
-> - If the proposed parameter value is "better" then the current value (i.e. produces a higher posterior density) then it is *always* visited.
-> - If it is not better than the current value it is visited in proportion to how it compares to the current value: $f(\theta_{\text{new}})/f(\theta_{\text{current}})$
-> - Thus, values with a higher posterior density are visited more often. Running a long chain and assessing how often certain parameter values are represented gives us the posterior even if we don't know how to express its form analytically.
-
-## Metropolis Example
+## Things to consider
 
 ```{r, echo=FALSE, fig.show='hide'}
 
@@ -143,149 +163,6 @@ source("metropolis-example.R")
 library(coda)
 
 ```
-
-- Suppose we want to estimate the mean ($\mu$) IQ (or some other cognitive) score of a group of participants (N = `r N`).
-- The test is scaled to have a population standard deviation of 15 so we assume that this is known.
-
-```{r, echo=FALSE, fig.height=4}
-
-hist(Y, xlab = "Score", main = "Test Scores", col = "seagreen3")
-
-```
-
-## Metropolis Example
-
-- We need to choose a prior distribution for $\mu$
-- Here we use a normal distribution with a mean of `r prior_m` and standard deviation of `r prior_sd`
-
-```{r, echo=FALSE}
-
-curve(dnorm(x = x, prior_m, prior_sd), from = prior_m-prior_sd*3, to = prior_m+prior_sd*3, xlab = bquote(mu), ylab="", main = "Prior", col = "darkgreen", lwd = 2)
-
-```
-
-## Metropolis Example
-
-- The script `metropolis-example.R` contains code implementing a Metropolis algorithm
-
-```{r, echo=FALSE}
-
-# plot the steps in the chain
-plot(samples, xlab = "Step", ylab = bquote(mu), type="l", col="blue")
-
-```
-
-## Let's take a look at some steps
-
-<div class="columns-2">
-
-```{r, echo=FALSE, fig.width=5}
-
-step = 500:504
-
-mu = c(105, 111, 111, 109, 113)
-
-plot(step, mu, xlab = "Step", ylab = bquote(mu), type="l", col="blue")
-points(step[1], mu[1], pch=16, cex=2, col="red")
-
-```
-
-</br>
-
-**Step 500**
-
-- The current value of $\mu$ is `r mu[1]`. A new value is proposed from a normal distribution with a mean of `r mu[1]` and a standard deviation of 5. The proposed value is 111.
-- Next we calculate $p(\mu)p(y \mid \mu)$ for both the current and proposed values of $\mu$ (we use the `dnorm` function twice as both the prior and the likelihood are normal).
-- In this case $p_{\text{accept}} = 1$ so we accept the proposal for step 501
-
-</div>
-
-## Let's take a look at some steps
-
-<div class="columns-2">
-
-```{r, echo=FALSE, fig.width=5}
-
-plot(step, mu, xlab = "Step", ylab = bquote(mu), type="l", col="blue")
-points(step[2], mu[2], pch=16, cex=2, col="red")
-
-```
-
-</br>
-
-**Step 501**
-
-- The current value of $\mu$ is `r mu[2]`. The proposed value is 103.
-- The ratio of $p(\mu)p(y \mid \mu)$ for proposed relative to current value of $\mu$ gives $p_{\text{accept}} = .4$
-- The number sampled via `runif(n = 1, min = 0, max = 1)` is 0.6 so the proposal is *rejected*
-- We stick with 111 for the next step
-
-</div>
-
-## Let's take a look at some steps
-
-<div class="columns-2">
-
-```{r, echo=FALSE, fig.width=5}
-
-plot(step, mu, xlab = "Step", ylab = bquote(mu), type="l", col="blue")
-points(step[3], mu[3], pch=16, cex=2, col="red")
-
-```
-
-</br>
-
-**Step 502**
-
-- The current value of $\mu$ is `r mu[3]`. The proposed value is `r mu[4]`.
-- The ratio of $p(\mu)p(y \mid \mu)$ for proposed relative to current value of $\mu$ gives $p_{\text{accept}} = .8$
-- The number sampled via `runif(n = 1, min = 0, max = 1)` is 0.34 so the proposal is *accepted*
-- The current value is set to `r mu[4]` for step 503.
-
-and so on...
-
-</div>
-
-## It works! 
-
-For a normal likelihood with a normal prior on the mean the form of the posterior distribution is known. So we can compare the results. 
-
-```{r, echo=FALSE}
-
-# plot the histogram
-hist(samples, xlab = bquote(mu), main = paste0("N samples = ", length(samples)), col = "grey", breaks = 30, probability = T)
-
-# calculate the exact form of the posterior to compare to the samples
-#post = posterior_quantities(y = Y, prior_mean = prior_m, prior_sd = prior_sd)
-curve(dnorm(x, mean = post[1], sd = post[2]), from = min(samples), to = max(samples), col = "red", lwd = 2, add = T)
-
-```
-
-## It works! 
-
-Increasing the number of steps improves the approximation.
-
-```{r, echo=FALSE}
-
-samples2 = metropolis_iq(y = Y, 
-                        prior_mean = prior_m,
-                        prior_sd = prior_sd, 
-                        proposal_sd = 5,
-                        n_samples = 10000, 
-                        start = 100)
-
-# plot the histogram
-hist(samples2, xlab = bquote(mu), main = paste0("N samples = ", length(samples2)), col = "grey", breaks = 30, probability = T)
-
-# calculate the exact form of the posterior to compare to the samples
-#post = posterior_quantities(y = Y, prior_mean = prior_m, prior_sd = prior_sd)
-curve(dnorm(x, mean = post[1], sd = post[2]), from = min(samples2), to = max(samples2), col = "red", lwd = 2, add = T)
-
-```
-
-# How accurate is the MCMC chain?
-
-## Things to consider
 
 - Burn in (or warm up)
 - Autocorrelation
@@ -410,46 +287,208 @@ autocorr.plot(as.mcmc(samples8[seq(1, 10000, 100)]), auto.layout = F, main = "Ke
 
 - If autocorrelation is really bad thinning might help, but it might suggest deeper problems with your model (see Gelman et al., 2014)
 - It has been claimed that thinning is "often unnecessary and always inefficient" ([Link & Eaton, 2012](https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/j.2041-210X.2011.00131.x)). 
-- Often it is better to keep the full chains than throw information away.
+- Often it is better to keep the full chains.
 
-# Gibbs Sampling
+# Posterior Predictive Checking
 
-## Reminder of the Metropolis algorithm
+## Posterior Predictive Checking
 
-1. Select a stating point in the parameter space.
-2. A move in parameter space is suggested from a *proposal distribution*.
-3. We work out the probability of accepting the move via $p_{\text{accept}} = \min\left(\frac{f(\theta_{\text{new}})}{f(\theta_{\text{current}})}, 1\right)$.
-4. If a uniform(0, 1) number is smaller than $p_{\text{accept}}$ then we accept the new parameter value for the next cycle.
-5. Repeat steps 2-4 many times.
+- PPCs are a way of evaluating the performance of a particular model and identifying potential areas/ sources of misfit
+- Involves simulating outcomes ($y_{\mbox{rep}}$) from the model
+- Incorporating uncertainty in the estimated parameters
 
-## Gibbs Sampling
+## Posterior Predictive Checking
 
-More complicated than our Metropolis algorithm but better for large numbers of parameters, which easily occurs in hierarchical modeling. Imagine a two parameter situation $\{\theta_1, \theta_2\}$ with independent prior distributions $p(\theta_1, \theta_2) = p(\theta_1)p(\theta_2)$.
+For each step in the chain (or a random subset of the chain), simulate $N$ observations from the model with parameters set to the current step in the chain (where $N$ is the size of the original data set)
 
-> 1. Start at a random point in the (two dimensional) parameter space.
-> 2. Select one of the parameters (e.g. $\theta_1$). Sample a new value for it from $p(\theta_1 \mid \theta_2, y)$ using the current value of the other parameters (in this case, $\theta_2$).
-> 3. The sampled value comes directly from the posterior of $\theta_1$ conditional on the current value of $\theta_2$ so the move is *always* accepted.
-> 4. Go back to step 2 and repeat many times.
+We can compare these simulated outcomes to the observed data
 
-To do this we need to know the conditional distributions for each parameter given each of the others $p(\theta_i \mid \theta_{i \neq j}, y)$. Luckily software (Stan) can do this for us!
+## Posterior Predictive Checking
 
-# Posterior predictive checks
+```{r, echo=F}
+pp_check(m1, nsamples=100)
+```
 
-## Posterior predictive checks
+## Posterior Predictive Checking
 
-PPCs are a way of evaluating the performance of a particular model and identifying potential areas/ sources of misfit.
+- We can also caculate specific quantities (e.g., max, min, mean) for each posterior predictive sample and compare to those from the observed data set
+- If a particular statistic ($T$) from the observed data is rare under the model predictions, this is indicative of misfit
+
+## Posterior Predictive Checking
+
+```{r, echo=F}
+ppc_stat(sleepstudy$Reaction , posterior_predict(m1), stat = "min")
+```
+
+## Posterior Predictive Checking
+
+```{r, echo=F}
+ppc_stat_grouped(sleepstudy$Reaction , posterior_predict(m1), group=sleepstudy$Subject, stat = "mean")
+```
 
 # Model comparison
 
 ## Model comparison
 
-- Bayes' factors (based on marginal likelihood, or posterior density)
-- Log predictive density (loo, WAIC)
+- Out-of-sample prediction accuracy
+    - Approximate leave-one-out cross validation (LOO)
+    - Widely Applicable Information Criterion (WAIC)
+- Marginal likelihood
+    - Bayes factor
+    - Posterior model probability
+
+## LOO and WAIC
+
+Both try to estimate the *expected log predictive density* (elpd) for a new data set
+
+- LOO can be approximated by [importance sampling](https://en.wikipedia.org/wiki/Importance_sampling), specifically we will use parieto smoothed importance sampling (psis) as implemented in the `loo` package
+- WAIC is a Bayesian extension of AIC ([Watanabe, 2010](http://www.jmlr.org/papers/volume11/watanabe10a/watanabe10a.pdf)). It essentially estimates the effective number of parameters of the model and uses this to penalize its predictive accuracy
+
+Larger elpd is better but note that LOO and WAIC are often reported on deviance scale (multiplied by -2), in which case smaller values indicate better fit
+
+## LOO and WAIC
+
+- Asymtotically, WAIC and LOO should the the same, although LOO is advocated for more strongly where possible (see [Vehtari et al., 2017](https://arxiv.org/pdf/1507.04544.pdf))
+- When not possible (as we'll see in some `brms` examples), $K$-fold cross validation can be used
+
+## Bayes factors
+
+$$
+\frac{p(M_1 \mid y)}{p(M_2 \mid y)} = \frac{p(y \mid M_1)}{p(y \mid M_2)} \times \frac{p(M_1)}{p(M_2)}
+$$
+
+$$
+\frac{p(M_1 \mid y)}{p(M_2 \mid y)} = B_{1,2} \times \frac{p(M_1)}{p(M_2)}
+$$
+
+- The Bayes factor, $B$, is the 'updating factor'
+- How much does our belief in model 1 over model 2 change, having seen the data
+
+## Marginal Likelihood
+
+$$
+p(y \mid M_i) = \int_{\theta_i} p(y \mid \theta_i, M_i) p(\theta_i, M_i) d\theta_i
+$$
+
+- `r emo::ji("scared")`
+- We will use bridge sampling to estimate the marginal likelihood (see [Gronau et al., 2017](https://www.sciencedirect.com/science/article/pii/S0022249617300640) for an introduction)
+- There are other approaches such as ['transdimensional MCMC'](https://www.sciencedirect.com/science/article/abs/pii/S0022249611000423) or the JZS 'default' Bayes factors implemented in the [`BayesFactor`](https://cran.r-project.org/web/packages/BayesFactor/BayesFactor.pdf) package (only normal models)
+
+<!--Something on Lindley's paradox and importance of priors here?-->
+
+# Summarizing the Posterior
+
+## Summarizing the Posterior
+
+- Each sample in the chain is a point in the joint parameter space
+- For inference, we'll focus on the marginal distribution of each parameter of interest
+- Usually we'll be interested in the mean, median, and quantiles of the posterior
+
+## Credible interval and highest density interval
+
+You'll see both of these around...
+
+- **95% Credible Interval:** the 2.5% to 97.5% quantiles (output by default in brms)
+- **95% Highest Density Interval:** an interval containing 95% of the posterior mass such that *values contained within the interval have higher posterior density than values outside the interval* (can use `HDInterval::hdi()` to calculate)
+
+## Credible interval and highest density interval
+
+```{r, echo=F}
+
+sym = rnorm(10000)
+
+h1=hist(sym, xlab="", ylab="", main="", breaks = 30, probability = T, col = "lightblue", border=F)
+
+sym_hdi = HDInterval::hdi(sym)
+sym_ci = quantile(sym, probs = c(.025, .975))
+
+segments(x0 = sym_hdi[1], y0 = 0, x1 = sym_hdi[2], y1 = 0, lwd=3, col="red")
+text(x=0, y=0, labels = sprintf("HDI: [%.2f, %.2f]", sym_hdi[1], sym_hdi[2]), col='red', adj=c(.5,-1))
+
+segments(x0 = sym_ci[1], y0 = .25*max(h1$density), x1 = sym_ci[2], y1 = .25*max(h1$density), lwd=3)
+text(x=0, y=.25*max(h1$density), labels = sprintf("CI: [%.2f, %.2f]", sym_ci[1], sym_ci[2]), adj=c(.5,-1))
+
+```
+
+## Credible interval and highest density interval
+
+```{r, echo=F}
+
+#asym = rgamma(10000, shape = 1, rate = .001)
+asym = rlnorm(10000, meanlog = 1, sdlog = .5)
+
+
+h1=hist(asym, xlab="", ylab="", main="", breaks = 30, probability = T, col = "lightblue", border=F)
+
+asym_hdi = HDInterval::hdi(asym)
+asym_ci = quantile(asym, probs = c(.025, .975))
+
+segments(x0 = asym_hdi[1], y0 = 0, x1 = asym_hdi[2], y1 = 0, lwd=3, col="red")
+text(x=mean(asym), y=0, labels = sprintf("HDI: [%.2f, %.2f]", asym_hdi[1], asym_hdi[2]), col='red', adj=c(.5,-1))
+
+segments(x0 = asym_ci[1], y0 = .25*max(h1$density), x1 = asym_ci[2], y1 = .25*max(h1$density), lwd=3)
+text(x=mean(asym), y=.25*max(h1$density), labels = sprintf("CI: [%.2f, %.2f]", asym_ci[1], asym_ci[2]), adj=c(.5,-1))
+
+```
+
+## The Savage-Dickey Bayes factor
+
+- AKA the Savage-Dickey density ratio (see [Wagenmakers et al., 2010](https://www.sciencedirect.com/science/article/pii/S0010028509000826) for an introduction)
+- For a point hypothesis regarding a parameter value, we compare the height of the posterior distribution to the height of the prior distribution *at that particular value*
+- The relative height of the posterior and prior tells us how much our beleive *in that particular* value has changed after seeing the data
+
+## The Savage-Dickey Bayes factor
+
+```{r, echo=F}
+
+plot_savdic <- function(prior_sd=1, post_mu=.8, post_sd=.5){
+  cols = viridis::viridis(2, begin = .2, end = .8)
+  
+  x = seq(-3,3,.01)
+  
+  stopifnot(any(x==0))
+
+  prior = dnorm(x, mean = 0, sd = prior_sd)
+  posterior = dnorm(x, mean = post_mu, sd = post_sd)
+  
+  plot(NA, xlim=c(-3,3), ylim=c(0, max(c(prior, posterior))), xlab=bquote(theta), ylab='')
+  
+  lines(x, prior, col=cols[1], lwd=2)
+  lines(x, posterior, col=cols[2], lwd=2)
+  
+  points(0, prior[x==0], col=cols[1], pch=16, cex=1.2)
+  points(0, posterior[x==0], col=cols[2], pch=16, cex=1.2)
+  
+  legend("topleft", legend = c("prior", "posterior"), text.col=cols, bty="n")
+  
+  text(x = -2, y = .5*( max(c(prior, posterior))), labels=bquote(B["01"]~"="~.(round(posterior[x==0]/prior[x==0], 3))), adj=0)
+}
+
+plot_savdic()
+
+```
+
+## The Savage-Dickey Bayes factor
+
+```{r, echo=F}
+plot_savdic(prior_sd = 3)
+```
+
+## Summary
+
+Steps we'll follow in our `brms` examples:
+
+1. Figure out what model is appropriate for the data at hand
+2. Specify reasonable priors for model parameters (need to be especially careful if you want Bayes factors)
+3. Fit model (using `brms`, `Stan`, etc) and ensure chains have converged (we'll cover other possible problems/errors specific to `Stan`)
+4. Posterior predictive plots - are there areas for improvement?
+5. Refine model, compare competing models, ...
+6. Examine posterior quantities (mean, median, CI, HDI)
 
 ## End of introduction to Bayesian analysis
 
-This drew heavily on:
+Further reading:
 
-- Kruschke (2015). Doing Bayesian Data Analysis: A Tutorial with R, JAGS, and Stan. Chapter 7.
-- Gelman et al. (2014). Bayesian Data Analysis (3rd edition). Chapters 11 and 12.
-
+- Kruschke (2015). [Doing Bayesian Data Analysis: A Tutorial with R, JAGS, and Stan.](https://www.sciencedirect.com/book/9780124058880/doing-bayesian-data-analysis) Chapter 7.
+- Gelman et al. (2014). [Bayesian Data Analysis (3rd edition).](http://www.stat.columbia.edu/~gelman/book/) Chapters 6, 11 and 12.
+- Kruschke, J. K., & Liddell, T. M. (2018). [The Bayesian New Statistics: Hypothesis testing, estimation, meta-analysis, and power analysis from a Bayesian perspective.](https://link.springer.com/article/10.3758/s13423-016-1221-4) Psychonomic Bulletin & Review, 25(1), 178-206.

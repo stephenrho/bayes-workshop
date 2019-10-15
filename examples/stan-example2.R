@@ -7,8 +7,10 @@
 ### or are random guesses on some area, A
 ### ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ 
 
-recall_2d = read.csv("examples/recall-2D.csv")
+library(rstan)
+library(bayesplot)
 
+recall_2d = read.csv("examples/recall-2D.csv")
 
 data_list = list(
   N = nrow(recall_2d),

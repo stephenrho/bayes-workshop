@@ -31,7 +31,7 @@ This workshop will introduce attendees to Bayesian data analysis and the `R` pac
 In RStudio type:
 
 ```
-install.packages(c("brms", "rstan")) # this might take a while...
+install.packages(c("brms", "rstan", "bayesplot", "coda")) # this might take a while...
 ```
 
 ## Recommended Reading

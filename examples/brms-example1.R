@@ -153,8 +153,6 @@ lapply(sample(4000, size = 1000),
 # to add the observed means, uncomment the line below
 # with(aggregate(Reaction~Days, FUN = mean, data = sleepstudy), points(Days+1, Reaction, pch=16, type='b', col='red'))
 
-
-
 # alternative plot... posterior mean and 95% credible interval
 
 x = t(apply(m3_mean_pp, 2, FUN = function(x) c(mean=mean(x), quantile(x, probs = c(.025,.975)))))
@@ -165,3 +163,52 @@ plot(NA, xlim=c(1,10), ylim=c(200,400), axes=F, xlab="Days", ylab="Reaction", ma
 axis(1, at=1:10, labels = 0:9); axis(2)
 with(x, polygon(x = c(1:10, 10:1), y = c(lower, rev(upper)), col = "lightblue", border = NA))
 with(x, lines(1:10, mean))
+
+## Possible extensions to the model ---- 
+
+# mainly to demonstrate the additional functionality of brms...
+
+# monotonic predictor
+
+get_prior(Reaction ~ mo(Days) + (1 + mo(Days) | Subject), data = sleepstudy, family = gaussian)
+
+m4 = brm(Reaction ~ mo(Days) + (1 + mo(Days) | Subject), data = sleepstudy, 
+         family = gaussian, 
+         prior=priors,
+         save_all_pars=T, 
+         sample_prior = T) 
+
+m4 = add_criterion(m4, c("loo", "waic", "marglik"))
+
+loo_compare(m3, m4, criterion = "loo")
+
+bayes_factor(m3,m4)
+
+# distributional model (allow residual SD to vary with days?)
+
+m5_form = bf(Reaction ~ Days + (1 + Days | Subject), sigma ~ Days)
+
+get_prior(m5_form, data = sleepstudy, family = gaussian)
+
+priors = c(set_prior("normal(300, 100)", class = "Intercept"),
+           set_prior("normal(0, 50)", class = "b"),
+           set_prior("cauchy(0, 50)", class = "b", dpar = "sigma"),
+           set_prior("lkj(1)", class = "cor"))
+
+m5 = brm(m5_form, data = sleepstudy, 
+         family = gaussian, 
+         prior=priors,
+         save_all_pars=T, 
+         sample_prior = T) 
+
+m5 = add_criterion(m5, c("loo", "waic", "marglik"))
+
+loo_compare(m3, m5, criterion = "loo")
+
+bayes_factor(m3, m5)
+
+
+# save to load objects in brms.Rmd
+# save.image("examples/brms-example1.RData")
+
+
