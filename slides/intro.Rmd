@@ -5,7 +5,7 @@ date: 'Last updated: `r Sys.Date()`'
 output:
   ioslides_presentation:
     widescreen: yes
-  beamer_presentation: default
+    logo: images/bayes.jpg
 ---
 
 ```{r setup, include=FALSE}
@@ -16,6 +16,18 @@ library(bayesplot)
 
 load("../examples/brms-example1.RData")
 ```
+
+## Materials
+
+https://github.com/stephenrho/bayes-workshop
+
+<br>
+
+![](images/materials.png){width=800px}
+
+<br>
+
+In `R` set working directory to `bayes-workshop` (or `bayes-workshop-master`)
 
 ## Workshop Overview
 
@@ -42,17 +54,19 @@ I've tried to include links throughout that will be useful when you come to run 
 
 ## Why go Bayesian?
 
-It tells you what you want to know.
+It tells you what you want to know!
 
 Given the data (and our prior knowledge),
 
 > - What interval contains an unobserved parameter with .95 (or some other) probability?
-> - What's the relative weight of evidence for one model (e.g., 'null') vs. another (e.g., an alternative).
+> - What's the relative weight of evidence for one model (e.g., 'null') vs. another (e.g., an alternative)?
 
 ## Why go Bayesian?
 
 > - We almost always have some prior knowledge of reasonable parameter values - this should be incorporated
 > - Results are not dependent on a 'sampling plan' (see, e.g., Kruschke & Liddell, 2018 for more)
+> - There are incredibly flexible packages that are fairly easy to use (i.e., `brms`)
+> - Why not!
     
 # Introduction to Bayesian analysis
 
@@ -87,34 +101,9 @@ $$
 
 **The posterior is proportional to the prior times the likelihood**
 
-<!--
-## Bayesian estimation
-
-```{r}
-
-cols = viridis::viridis(3)
-
-x = seq(-5, 5, by = .2)
-
-pr = dnorm(x, mean = 0, sd = 3)
-l = dnorm(x, mean = 0, sd = 1)
-po = pr*l
-
-plot(NA, xlim = c(-5,5), ylim = c(0, max(c(pr, l, po))))
-lines(x, pr, type='b', col=cols[1])
-lines(x, l, type='b', col=cols[2])
-lines(x, po, type='b', col=cols[3])
-
-```
--->
-
 # Likelihood | $p(y \mid \theta)$
 
-## Likelihood
-
-Some fake data we'll assume comes from a normal distribution. Think of it as time (in seconds) to read a short passage of text for 30 individuals. 
-
-Goal is to estimate mean reading time ($\mu$) and variability ($\sigma$)
+## Likelihood {.columns-2}
 
 ```{r, echo=F}
 set.seed(1234)
@@ -122,15 +111,17 @@ Y = rnorm(30, 30, 10)
 hist(Y, xlab='', main=sprintf("M = %.2f, SD = %.2f", mean(Y), sd(Y)), breaks = 10)
 ```
 
-## Likelihood
+- To talk about the likelihood we'll use some fake data that we'll assume is normally distributed. Think of it as time (in seconds) to read a short passage of text for 30 individuals
+- Goal is to estimate mean reading time ($\mu$) and variability ($\sigma$)
 
-For this example we can assume the observations are independent and $f$ is the normal pdf
+## Likelihood
 
 $$
 p(\mathbf{\theta \mid y}) = \prod^i f(\theta \mid y_i)
 $$
 
-For an introduction, see [Etz (2018)](https://journals.sagepub.com/doi/pdf/10.1177/2515245917744314)
+- For this example we can assume the observations are independent and $f$ is the normal pdf
+- For an introduction, see [Etz (2018)](https://journals.sagepub.com/doi/pdf/10.1177/2515245917744314)
 
 ## Likelihood
 
@@ -303,7 +294,7 @@ If we had strong reason to expect that $y$ should increase with $x$ we could ins
 
 - For lme models with correlated random effects, we'll need a prior for the correlation matrix (in other work you might see people put a prior on the covariance matrix)
 - `brms` and `Stan` use the LJK prior (after [Lewandowski Kurowicka, & Joe, 2009](https://www.sciencedirect.com/science/article/pii/S0047259X09000876))
-- It has one parameter, $\eta$
+- It has one parameter, $\eta$ (shape)
 
 ## Prior - correlation
 
@@ -311,29 +302,29 @@ If we had strong reason to expect that $y$ should increase with $x$ we could ins
 
 Image from [here](https://www.psychstatistics.com/2014/12/27/d-lkj-priors/)
 
-## Aside on lme4 convergence
+## An aside on lme4 convergence
 
-- For models with lots of random effects `lme4` convergence can be an issue
-- This usually isn't an `lme4` problem - [the model is too complex to be supported by the data](https://arxiv.org/pdf/1506.04967.pdf)
-- With the additional regularizing information in the prior, this should not be an issue in brms/Stan (see, e.g., this [blog](http://babieslearninglanguage.blogspot.com/2018/02/mixed-effects-models-is-it-time-to-go.html))
-- So it should be possible to ['keep it maximal'](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3881361/)
-- [Some](https://arxiv.org/pdf/1506.04967.pdf) still suggest that random effects structure should be simplified on grounds of parsimony (e.g., remove if the 95% credible interval for a random SD or correlation includes zero)
-
-## Prior - Summary
-
-- Setting priors can be tricky (slide after next has useful links)
-- When estimating parameters the main thing is to not be too restrictive (you want to let the data 'speak' and not rule out certain values without good reason)
-- For complex models (e.g., those with transformations of prameters), assessing whether the prior actually expresses what we expect can be difficult
-- It can be useful to look at the *prior predictive distribution*, which is essentially many simulated data sets using parameters drawn from the prior (extra slides on this at the end)
-- Typically, we will have enough data to 'overwhelm' the prior
-- If you are worried that you do not, you can do sensitivity analyses (i.e., check how much your conclusions depend on the prior)
+> - For models with lots of random effects `lme4` convergence can be an issue
+> - This usually isn't an `lme4` problem - [the model is too complex to be supported by the data](https://arxiv.org/pdf/1506.04967.pdf)
+> - With the additional regularizing information in the prior, this should not be an issue in brms/Stan (see, e.g., this [blog](http://babieslearninglanguage.blogspot.com/2018/02/mixed-effects-models-is-it-time-to-go.html))
+> - So it should be possible to ['keep it maximal'](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3881361/)
+> - [Some](https://arxiv.org/pdf/1506.04967.pdf) still suggest that random effects structure should be simplified on grounds of parsimony (e.g., remove if the 95% credible interval for a random SD or correlation includes zero)
 
 ## Prior - Summary
 
-- For model comparison and particularly hypothesis testing with Bayes factors priors should be selected much more carefully
-- The different models you are comparing are defined by their priors
-- So they should reflect reasonable alternatives
-- For example, comparing a model with a parameter (e.g., mean difference) to one without, if the prior on the parameter is very diffuse (e.g., a normal with large SD) you will likely get strong evidence for the null
+> - Setting priors can be tricky (slide after next has useful links)
+> - When estimating parameters the main thing is to not be too restrictive (you want to let the data 'speak' and not rule out certain values without good reason)
+> - For complex models (e.g., those with transformations of prameters), assessing whether the prior actually expresses what we expect can be difficult
+> - It can be useful to look at the *prior predictive distribution*, which is essentially many simulated data sets using parameters drawn from the prior (extra slides on this at the end)
+> - Typically, we will have enough data to 'overwhelm' the prior
+> - If you are worried that you do not, you can do sensitivity analyses (i.e., check how much your conclusions depend on the prior)
+
+## Prior - Summary
+
+> - For model comparison and particularly hypothesis testing with Bayes factors priors should be selected much more carefully
+> - The different models you are comparing are defined by their priors
+> - So they should reflect reasonable alternatives
+> - For example, comparing a model with a parameter (e.g., mean difference) to one without, if the prior on the parameter is very diffuse (e.g., a normal with large SD) you will likely get strong evidence for the null
 
 ## Useful papers/ links on priors
 
@@ -383,7 +374,7 @@ library(coda)
 - Burn in (or warm up)
 - Auto-correlation
 - Effective Sample Size (ESS)
-- Convergence and the Potential Scale Reduction Factor (PSRF)
+- **Convergence and the Potential Scale Reduction Factor (PSRF)**
 - Thinning
 
 ## Burn in (or warm up)
@@ -512,9 +503,9 @@ autocorr.plot(as.mcmc(samples8[seq(1, 10000, 100)]), auto.layout = F, main = "Ke
 
 ## Posterior Predictive Checking
 
-- PPCs are a way of evaluating the performance of a particular model and identifying potential areas/ sources of misfit
-- Involves simulating outcomes ($y_{\mbox{rep}}$) from the model
-- Incorporating uncertainty in the estimated parameters
+- Posterior predictive checks are a way of evaluating the performance of a particular model and identifying potential areas of misfit
+- Involves simulating outcomes ($y_{\mbox{rep}}$) from the model using each step in the MCMC chain as the parameter settings
+- Thus, it incorporates the uncertainty in the estimated parameters
 
 ## Posterior Predictive Checking
 
@@ -560,8 +551,8 @@ ppc_stat_grouped(sleepstudy$Reaction , posterior_predict(m1), group=sleepstudy$S
 
 Both try to estimate the *expected log predictive density* (elpd) for new data
 
-- LOO can be approximated by [importance sampling](https://en.wikipedia.org/wiki/Importance_sampling), specifically we will use Pareto smoothed importance sampling (psis) as implemented in the `loo` package (see [Vehtari et al., 2017](https://arxiv.org/pdf/1507.04544.pdf) for details)
-- WAIC is a Bayesian extension of AIC ([Watanabe, 2010](http://www.jmlr.org/papers/volume11/watanabe10a/watanabe10a.pdf)). It essentially estimates the effective number of parameters of the model and uses this to penalize its predictive accuracy
+> - LOO can be approximated by [importance sampling](https://en.wikipedia.org/wiki/Importance_sampling), specifically we will use Pareto smoothed importance sampling (psis) as implemented in the `loo` package (see [Vehtari et al., 2017](https://arxiv.org/pdf/1507.04544.pdf) for details)
+> - WAIC is a Bayesian extension of AIC ([Watanabe, 2010](http://www.jmlr.org/papers/volume11/watanabe10a/watanabe10a.pdf)). It essentially estimates the effective number of parameters of the model and uses this to penalize its predictive accuracy
 
 Larger elpd is better but note that LOO and WAIC are often reported on deviance scale (multiplied by -2), in which case smaller values indicate better fit.
 
@@ -586,14 +577,12 @@ $$
 ## Marginal Likelihood
 
 $$
-p(y \mid M_i) = \int_{\theta_i} p(y \mid \theta_i, M_i) p(\theta_i, M_i) d\theta_i
+p(y \mid M) = \int p(y \mid \theta, M) p(\theta \mid M) d\theta
 $$
 
 - `r emo::ji("scared")`
-- We will use bridge sampling to estimate the marginal likelihood (see [Gronau et al., 2017](https://www.sciencedirect.com/science/article/pii/S0022249617300640) for an introduction)
+- We can use bridge sampling to estimate the marginal likelihood (see [Gronau et al., 2017](https://www.sciencedirect.com/science/article/pii/S0022249617300640) for an introduction)
 - There are other approaches such as ['transdimensional MCMC'](https://www.sciencedirect.com/science/article/abs/pii/S0022249611000423) or the JZS 'default' Bayes factors implemented in the [`BayesFactor`](https://cran.r-project.org/web/packages/BayesFactor/BayesFactor.pdf) package (only normal models)
-
-<!--Something on Lindley's paradox and importance of priors here?-->
 
 # Summarizing the Posterior
 
@@ -607,13 +596,14 @@ $$
 
 You will see both of these around...
 
-- **95% Credible Interval:** the 2.5% to 97.5% quantiles (output by default in brms)
-- **95% Highest Density Interval:** an interval containing 95% of the posterior mass such that *values contained within the interval have higher posterior density than values outside the interval* (can use `HDInterval::hdi()` to calculate)
+- **95% Credible Interval (CI):** the 2.5% to 97.5% quantiles (output by default in `brms`)
+- **95% Highest Density Interval (HDI):** an interval containing 95% of the posterior mass such that *values contained within the interval have higher posterior density than values outside the interval* (can use `HDInterval::hdi()` to calculate)
 
 ## Credible interval and highest density interval
 
 ```{r, echo=F}
 
+# a symmetrical distribution
 sym = rnorm(10000)
 
 h1=hist(sym, xlab="", ylab="", main="", breaks = 30, probability = T, col = "lightblue", border=F)
@@ -633,9 +623,10 @@ text(x=0, y=.25*max(h1$density), labels = sprintf("CI: [%.2f, %.2f]", sym_ci[1],
 
 ```{r, echo=F}
 
+# an asymmetrical distribution
+
 #asym = rgamma(10000, shape = 1, rate = .001)
 asym = rlnorm(10000, meanlog = 1, sdlog = .5)
-
 
 h1=hist(asym, xlab="", ylab="", main="", breaks = 30, probability = T, col = "lightblue", border=F)
 
@@ -726,12 +717,12 @@ plot_savdic(prior_sd = 3)
 
 Steps we'll follow in our `brms` examples:
 
-1. Figure out what model is appropriate for the data at hand
-2. Specify reasonable priors for model parameters (need to be especially careful if you want Bayes factors)
-3. Fit model (using `brms`, `Stan`, etc) and ensure chains have converged (we'll cover other possible problems/errors specific to `Stan`)
-4. Posterior predictive plots - are there areas for improvement?
-5. Refine model, compare competing models, ...
-6. Examine posterior quantities (mean, median, CI, HDI)
+> 1. Figure out what model is appropriate for the data at hand
+> 2. Specify reasonable priors for model parameters (need to be especially careful if you want Bayes factors)
+> 3. Fit model (using `brms`, `Stan`, etc) and ensure chains have converged (we'll cover other possible warnings/errors specific to `Stan`)
+> 4. Posterior predictive plots - are there areas for improvement?
+> 5. Refine model, compare competing models, ...
+> 6. Examine posterior quantities (mean, median, CI, HDI)
 
 ## End of introduction to Bayesian analysis
 

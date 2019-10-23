@@ -6,8 +6,9 @@
 ### under different conditions (A, B - repeated measures)
 ### acc = accuracy of recall (1 = correct, 0 = incorrect)
 ### 
-### In the first model we don't model items effects.
+### In the first model we don't model item effects.
 ### In model 2 we do. 
+###
 ### This example demonstrates another brms model family 
 ### and extracting fitted values from model objects to perform
 ### contrasts on both transformed (logit) and manifest 
@@ -15,9 +16,10 @@
 ### ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ 
 
 library(brms)
+library(bayesplot)
 
 # speed things up
-options(mc.cores=parallel::detectCores())
+options(mc.cores=parallel::detectCores()) # don't worry if this doesn't work
 
 # read the data
 dat <- read.csv("examples/accuracy-data.csv")
@@ -35,8 +37,9 @@ options(contrasts=c("contr.sum", "contr.sum"))
 contrasts(dat$group)
 contrasts(dat$condition)
 
-## bad approach ----
-# let's start with a bad, but standard, analysis
+## Fairly common approach ----
+# that is less than ideal...
+# see https://www.psych.ualberta.ca/~pdixon/Home/resources/Dixon2008.pdf
 
 # starts by aggregating to get proportion correct
 dat_agg = aggregate(acc ~ id + condition + group, data = dat, FUN = sum)
@@ -45,17 +48,19 @@ dat_agg$p_acc = dat_agg$acc/26
 # anova
 summary(aov(p_acc ~ condition*group + Error(id/condition), data = dat_agg))
 
-# normal lme 
+# normal lme
 m0 = brm(p_acc ~ group*condition + (1 + condition | id), 
          data = dat_agg)
 
-pp_check(m0, nsamples=100) # little to do with the fact that we didn't specify priors...
+pp_check(m0, nsamples=100) # doesn't look great
+# little to do with the fact that we didn't specify priors...
 
 # marginal_effects(m0)
 
-## better approach ----
+## Better approach ----
+# linear model on the log odds (logit) of correct recall
 
-# model 1: we are going to ignore item variation
+## Model 1: we are going to ignore item variation ----
 
 get_prior(acc ~ group*condition + (1 + condition | id), data = dat, 
           family = bernoulli(link = "logit"))
@@ -80,45 +85,62 @@ priors = c(set_prior("normal(1, 2)", class = "Intercept"),
 # fit the model
 m1 = brm(acc ~ group*condition + (1 + condition | id), 
          data = dat, family = bernoulli(link = "logit"), # link could be "probit" - see ?brmsfamily for more detail - would have to use pnorm() where plogis() is used below
-         prior=priors)
+         prior=priors, 
+         save_all_pars=T)
 
 ## an alternative way to fit the model ignoring item variability...
 ## fit the model to the aggregated data where 'acc' is number correct
+## uncomment lines below to run
 # m1.2 = brm(acc | trials(26) ~ group*condition + (1 + condition | id), 
 #          data = dat_agg, # note we're using the aggregated data
 #          family = binomial(link = "logit"), # note that brms has a separate 'binomial' family
 #          prior=priors)
 
-pp_check(m1, nsamples = 100)
+summary(m1) # coefficients are on the logit scale
 
-marginal_effects(m1, method = "fitted", robust = F)
+# posterior predictive checks
+pp_check(m1, nsamples = 100) # note y and yrep are smoothed, hence area over != 0,1
+ppc_stat(y = dat$acc, yrep = posterior_predict(m1)) # mean = expected proportion correct
+ppc_stat_grouped(y = dat$acc, yrep = posterior_predict(m1), group = dat$id)
 
-summary(m1)
+# marginal effects (condition medians and 95% CIs on probability scale)
+marginal_effects(m1)
 
-# add variation by item...
+## Model 2: include a random intercept for item ----
+
 m2 = brm(acc ~ group*condition + (1 + condition | id) + (1 | item), 
          data = dat, family = bernoulli(link = "logit"),
          prior=priors, 
-         sample_prior = "yes")
-
-pp_check(m2, nsamples=100)
+         sample_prior = "yes", # for savage-dickey
+         save_all_pars = T)
 
 summary(m2)
 
-## compare models ----
-m1 = add_criterion(m1, c("loo", "waic"))#, "marglik"))
-m2 = add_criterion(m2, c("loo", "waic"))#, "marglik"))
+pp_check(m2, nsamples=100)
+
+
+
+## Compare models ----
+m1 = add_criterion(m1, c("loo", "waic", "marglik"))
+m2 = add_criterion(m2, c("loo", "waic", "marglik"))
 
 loo_compare(m1, m2)
+m1$loo
+m2$loo
+
 # in this case the loo difference is not convincing either way
 # here we'll err on the side of caution and look at results of m2
 
-# plot random effects
+bayes_factor(m1, m2)
+# loo and bf won't always agree
+
+## Plot random effects ----
 stanplot(m2, pars = 'r_item')
 stanplot(m2, pars = 'r_item', type = "dens_overlay") # see 'type' for more options
 stanplot(m2, pars = paste0("r_id[", 1:40, ",Intercept]"), exact_match = T) # can also use regular expressions for 'pars' (in which case exact_match=F)
 stanplot(m2, pars = paste0("r_id[", 1:40, ",condition1]"), exact_match = T)
 
+## Work with posterior samples ----
 # convert population level parameters to condition/ group means
 newd = expand.grid(condition=c("A", "B"), group=c(1,2))
 
@@ -130,36 +152,77 @@ m2_logit = posterior_linpred(m2, newdata = newd,
 colnames(m2_logit) = with(newd, paste(condition, group, sep="_"))
 head(m2_logit) # so we know which column is which...
 
+## condition means and 95% CIs converted back to probabilities
+
+apply(plogis(m2_logit), # plogis converts logit to p (aka inverse-logit)
+      2, # apply over columns
+      function(x) c(mean=mean(x), quantile(x, probs = c(.025,.975)))) # calculate mean and CI
+
+# compare to 
+m2_me = marginal_effects(m2) # marginal_effects uses median instead of mean (i.e., robust=T)
+m2_me$`group:condition`
+
+## Contrast conditions ----
+
+# function to make histogram with posterior mean + 95% CI
+plot_contr = function(x, title="", x_lab="", col="lightblue"){
+  # takes samples of a contrast (x; e.g., by subtracting mcmc samples) and plots a histogram
+  h=hist(x, breaks = 30, main=title, xlab=x_lab, col=col, border = F, probability = T)
+  text(mean(x), max(h$density)*.2, labels = sprintf("Mean + 95%% CI:\n%.2f [%.2f, %.2f]",
+                                           mean(x), 
+                                           quantile(x, probs = c(.025)), 
+                                           quantile(x, probs = c(.975))))
+}
+
 # some contrasts on the logit scale
-hist(m2_logit[,1] - m2_logit[,2], main="Condition A - B: Group 1", xlab="A - B (logit)")
-hist(m2_logit[,3] - m2_logit[,4], main="Condition A - B: Group 2", xlab="A - B (logit)")
-hist((m2_logit[,1] - m2_logit[,2]) - (m2_logit[,3] - m2_logit[,4]), 
-     main="Condition A - B: Group 1 vs 2", xlab="A - B (logit)")
+plot_contr(x = m2_logit[,1] - m2_logit[,2], # remember which columns are which...
+           title = "Condition A - B: Group 1", 
+           x_lab = "A - B (logit)")
 
+plot_contr(x = m2_logit[,3] - m2_logit[,4], 
+           title = "Condition A - B: Group 2", 
+           x_lab = "A - B (logit)")
+
+# is the difference larger in group 1 vs group 2?
+plot_contr(x = (m2_logit[,1] - m2_logit[,2]) - (m2_logit[,3] - m2_logit[,4]), 
+           title = "Condition A - B: Group 1 vs 2", 
+           x_lab = "A - B (logit)")
+
+# overall age difference 
 logit_group_diff = (m2_logit[,1] + m2_logit[,2])/2 - (m2_logit[,3] + m2_logit[,4])/2
-hist(logit_group_diff, 
-     main="Group 1 vs 2", xlab="A - B (logit)")
-
-quantile(logit_group_diff, probs = c(.025, .5, .975)) # median and 95% CI
+plot_contr(x = logit_group_diff, 
+           title = "Group 1 vs 2", 
+           x_lab = "logit difference")
 
 mean(logit_group_diff < 0) # proportion of the posterior below 0
 
 # contrasts on the observed (manifest) scale (p = probability correct)
 m2_p = plogis(m2_logit)
-hist(m2_p[,1] - m2_p[,2], main="Condition A - B: Group 1", xlab="A - B (p)")
-hist(m2_p[,3] - m2_p[,4], main="Condition A - B: Group 2", xlab="A - B (p)")
-hist((m2_p[,1] - m2_p[,2]) - (m2_p[,3] - m2_p[,4]), 
-     main="Condition A - B: Group 1 vs 2", xlab="A - B (p)")
 
-p_group_diff = plogis((m2_logit[,1] + m2_logit[,2])/2) - plogis((m2_logit[,3] + m2_logit[,4])/2)
-hist(p_group_diff, 
-     main="Group 1 vs 2", xlab="A - B (p)")
+plot_contr(x = m2_p[,1] - m2_p[,2], # remember which columns are which...
+           title = "Condition A - B: Group 1", 
+           x_lab = "A - B (p)")
 
-quantile(p_group_diff, probs = c(.025, .5, .975)) # median and 95% CI
+plot_contr(x = m2_p[,3] - m2_p[,4], 
+           title = "Condition A - B: Group 2", 
+           x_lab = "A - B (p)")
+
+# is the difference larger in group 1 vs group 2?
+plot_contr(x = (m2_p[,1] - m2_p[,2]) - (m2_p[,3] - m2_p[,4]), 
+           title = "Condition A - B: Group 1 vs 2", 
+           x_lab = "A - B (p)")
+
+# overall age difference 
+p_group_diff = plogis((m2_p[,1] + m2_p[,2])/2) - plogis((m2_p[,3] + m2_p[,4])/2)
+plot_contr(x = p_group_diff, 
+           title = "Group 1 vs 2", 
+           x_lab = "p difference")
 
 mean(p_group_diff < 0) # proportion of the posterior below 0
 
-# savage-dickey test for group:condition interaction (requires sample_prior = "yes")
+
+## Savage-Dickey test ----
+# for group:condition interaction (requires sample_prior = "yes")
 (hy = hypothesis(m2, "group1:condition1 = 0"))
 
 hy_p=plot(hy)[[1]]

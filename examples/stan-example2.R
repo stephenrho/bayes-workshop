@@ -12,6 +12,7 @@ library(bayesplot)
 
 recall_2d = read.csv("examples/recall-2D.csv")
 
+## Fit the model ----
 data_list = list(
   N = nrow(recall_2d),
   S = length(unique(recall_2d$id)),
@@ -32,19 +33,19 @@ fit <- stan(
   cores = 4
 )
 
-
-plot(fit)
+plot(fit, pars=c("mu_m", "mu_s"))
 plot(fit, pars="m")
 plot(fit, pars="s")
 
-mu_m = extract(fit, pars="mu_m")[[1]]
-mu_s = extract(fit, pars="mu_s")[[1]]
+## Do stuff with posterior samples ----
+mu_m = extract(fit, pars="mu_m")[[1]] # m on logit scale
+mu_s = extract(fit, pars="mu_s")[[1]] # s on log scale
 
+# plot population level estimates (transformed back to manifest scale)
 par(mfrow=c(1,2))
 hist(plogis(mu_m), col="lightblue", border=F, xlab="", main=bquote(mu[m]), probability = T)
 hist(exp(mu_s), breaks=30, col="violet", border=F, xlab="", main=bquote(mu[s]), probability = T)
 par(mfrow=c(1,1))
-
 
 # individual parameters transformed back to manifest scale
 pmem = plogis(extract(fit, pars="m")[[1]])
@@ -73,9 +74,18 @@ for (i in 1:S){
 par(mfrow=c(1,1))
 
 
+## posterior predictive plot -----
+# in the previous analysis we created yrep in the stan model
+# for this mixture model, things are more complicated
+# it may well be possible to sample yrep in stan directly
+# but here I create yrep outside of the stan model using the
+# posterior samples (the pmem and sigma objects created above)
+# Note that we will focus on the plot of recall error - 
+# the euclidean distance between studied and recalled locations
 
-# posterior predictive...
 sample_locs = function(rad=10, n=2){
+  # function to sample some random locations
+  # to simulate posterior predictive dist
   r = runif(n, 0, 1)
   theta = runif(n, 0, 2*pi)
   x = sqrt(r)*cos(theta)*rad
@@ -85,6 +95,8 @@ sample_locs = function(rad=10, n=2){
 }
 
 pp_sim = function(m, s){
+  # given an m and s parameter
+  # sample a response
   mem = rbinom(1,1,m)
   if (mem){
     x = rnorm(2, 0, sd = s)
@@ -100,17 +112,23 @@ pp_sim = function(m, s){
 # look at posterior predictive distribution for recall error
 recall_2d$error = with(recall_2d, sqrt((px - rx)^2 + (py - ry)^2))
 
+# loop over the data and sample from posterior predictive distribution
+# for each observation (takes a while...)
 yrep_error = matrix(NA, ncol = nrow(recall_2d), nrow = nrow(pmem))
-
 for (r in 1:nrow(recall_2d)){
   id = recall_2d$id[r]
-  yrep_error[,r] = unlist(lapply(1:nrow(pmem), 
+  yrep_error[,r] = unlist(lapply(1:nrow(pmem), # for each step in the chain, generate a response
                                 function(x) pp_sim(m = pmem[x, id], s = sigma[x, id])))
 }
 
-pp_rows = sample(4000, 100)
+dim(yrep_error)
+
+pp_rows = sample(4000, 100) # sample some rows to plot (takes too long to plot all)
+
+# plot posterior predictive distribution
 ppc_dens_overlay(y = recall_2d$error, yrep = yrep_error[pp_rows, ])
 
+# look at specific statistics of data and PPD
 ppc_stat(y = recall_2d$error, yrep = yrep_error[pp_rows, ])
 ppc_stat(y = recall_2d$error, yrep = yrep_error[pp_rows, ], stat = 'max')
 ppc_stat(y = recall_2d$error, yrep = yrep_error[pp_rows, ], stat = 'min')

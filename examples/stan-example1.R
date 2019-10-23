@@ -2,10 +2,13 @@
 ### stan - example 1
 ### Simple example model in Stan using the sleepstudy
 ### dataset also used in the first brms example
+###
+### the stan.html slides cover some of this example
 ### ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ 
 
 library(rstan)
 library(loo)
+library(bridgesampling)
 library(bayesplot)
 
 sleepstudy <- read.csv("examples/sleepstudy.csv")
@@ -33,7 +36,7 @@ m1_fit <- stan(
   cores = 4
 )
 
-plot(m1_fit, pars="beta")
+plot(m1_fit, pars="beta") # population level parameters - intercept[1], slope[2]
 plot(m1_fit, pars="sigma")
 
 (fit_summary_1 = summary(m1_fit))
@@ -54,10 +57,10 @@ m2_fit <- stan(
   cores = 4
 )
 
-plot(m2_fit, pars="beta")
-plot(m2_fit, pars="sigma")
-plot(m2_fit, pars="tau")
-plot(m2_fit, pars="b")
+plot(m2_fit, pars="beta") # population level parameters - intercept[1], slope[2]
+plot(m2_fit, pars="sigma") # sd of residual
+plot(m2_fit, pars="tau") # sd of random intercept
+plot(m2_fit, pars="b") # random participant intercept
 
 (fit_summary_2 = summary(m2_fit))
 
@@ -77,10 +80,10 @@ m3_fit <- stan(
   cores = 4
 )
 
-plot(m3_fit, pars="beta")
-plot(m3_fit, pars="sigma")
-plot(m3_fit, pars="tau")
-plot(m3_fit, pars="b")
+plot(m3_fit, pars="beta") # population level parameters
+plot(m3_fit, pars="sigma") # residual SD
+plot(m3_fit, pars="tau") # sd of random intercept[1]+slope[2]
+plot(m3_fit, pars="b") # random participant intercept[,1]+slope[,2]
 
 (fit_summary_3 = summary(m3_fit))
 
@@ -93,9 +96,9 @@ traceplot(m3_fit, pars=c("beta", "sigma", "tau"))
 ## compare models -----
 
 # calculate loo
-log_lik_1 = extract_log_lik(m1_fit, merge_chains = F)
+log_lik_1 = extract_log_lik(m1_fit, merge_chains = F) # gets the log likelihood matrix from generated quantities
 r_eff_1 = relative_eff(exp(log_lik_1)) # effective sample size divided by total sample size (using this makes loo more accurate)
-loo_1 = loo(log_lik_1, r_eff = r_eff_1)
+loo_1 = loo(log_lik_1, r_eff = r_eff_1) # calculate loo using loo package
 
 log_lik_2 = extract_log_lik(m2_fit, merge_chains = F)
 r_eff_2 = relative_eff(exp(log_lik_2))
@@ -105,7 +108,7 @@ log_lik_3 = extract_log_lik(m3_fit, merge_chains = F)
 r_eff_3 = relative_eff(exp(log_lik_3))
 loo_3 = loo(log_lik_3, r_eff = r_eff_3)
 
-loo_compare(loo_1, loo_2, loo_3)
+loo_compare(loo_1, loo_2, loo_3) # compare the three models
 
 # marginal likelihoods for bayes factors
 ml_1 = bridge_sampler(m1_fit)
@@ -125,7 +128,6 @@ ppc_stat(sleepstudy$Reaction, yrep, stat = "mean")
 
 ppc_dens_overlay(sleepstudy$Reaction, yrep[sample(nrow(yrep), size = 100),])
 
-
 # posterior distribution for population effect of days
 beta <- extract(m3_fit, pars = "beta")[[1]]
 
@@ -137,5 +139,6 @@ text(10, 50, labels = sprintf("%.2f [%.2f, %.2f]", mean(beta[,2]),
                               quantile(beta[,2], probs = c(.975))))
 
 
+# save.image("examples/stan-example1.RData")
 
 

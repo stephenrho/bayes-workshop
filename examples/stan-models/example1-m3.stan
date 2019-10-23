@@ -1,4 +1,7 @@
-
+// model with random intercept and slope (correlated)
+// this version uses some tricks to try and optimize
+// see https://mc-stan.org/docs/2_18/stan-users-guide/multivariate-hierarchical-priors-section.html
+// see example1-m3-simp.stan for a simpler version
 data {
   int<lower=0> N;             // n observations
   vector[N] y;                // reaction times

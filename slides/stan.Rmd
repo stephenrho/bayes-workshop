@@ -1,26 +1,32 @@
 ---
-title: "`Stan`: Overview and Examples"
+title: "Introduction to `Stan`"
 author: "Stephen Rhodes - srhodes@research.baycrest.org"
 date: 'Last updated: `r Sys.Date()`'
 output:
   ioslides_presentation:
     widescreen: yes
-  highlight: tango
+    logo: images/stan.png
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = T)
+knitr::opts_chunk$set(echo = T, warning = F, message = F)
+
+library(brms)
+library(rstan)
+library(loo)
+library(bridgesampling)
+library(bayesplot)
+
+load("../examples/brms-example1.RData")
+load("../examples/stan-example1.RData")
 ```
 
-<!--
-## Things to cover in these slides...
+## Overview
 
-- a basic stan model
-- rstan
-- a more complicated stan model (e.g. 2D mixture?)
-- vectorizing/ speeding up programs?
-
--->
+- Anatomy of a Stan model
+- Stan analysis of the `sleepstudy` dataset (stan-example1.R)
+- The `rstan` package
+- A more complex example that (I think) cannot be estimated with `brms` (stan-example2.R)
 
 # Anatomy of a Stan model
 
@@ -28,7 +34,7 @@ knitr::opts_chunk$set(echo = T)
 
 Necessary blocks (more info [here](https://mc-stan.org/docs/2_18/reference-manual/blocks-chapter.html))
 
-```
+```r
 data {
   \\ what we are modeling
 }
@@ -44,7 +50,7 @@ model {
 
 Optional blocks (more info [here](https://mc-stan.org/docs/2_18/reference-manual/blocks-chapter.html))
 
-```
+```r
 functions {
   \\ user defined functions
 }
@@ -60,6 +66,17 @@ generated quantities {
 }
 ```
 
+## `brms::stancode`
+
+- You can see the code that `brms` produces
+- Probably of limited use until familiar with the intricacies of `Stan`...
+
+```{r}
+stancode(m1)
+```
+
+# stan-example1.R
+
 ## `sleepstudy` Example
 
 ```{r}
@@ -69,7 +86,7 @@ head(sleepstudy)
 
 ## `data`
 
-```
+```r
 data {
   int<lower=0> N;             // n observations
   vector[N] y;                // reaction times
@@ -84,7 +101,7 @@ More on [data types](https://mc-stan.org/docs/2_18/reference-manual/data-types-c
 
 Below are the parameters for the simple (non-hierarchical) regression model (model 1)
 
-```
+```r
 parameters {
   vector[2] beta;             // fixed effects
   real<lower=0> sigma;        // residual SD
@@ -93,7 +110,7 @@ parameters {
 
 ## `model`
 
-```
+```r
 model {
   // priors
   sigma ~ cauchy(0,50);
@@ -109,7 +126,7 @@ model {
 
 ## `generated quantities`
 
-```
+```r
 generated quantities {
   vector[N] log_lik;      // log likelihood matrix
   vector[N] y_rep;        // posterior predictions
@@ -174,24 +191,66 @@ m1_fit <- stan(
 
 This runs 4 separate chains for 2000 samples (each) and discards the first 1000 (4000 post-warmup samples total)
 
-## Do stuff with the samples
+## `stanfit` object
 
-- `plot(m1_fit, pars="beta")` plots posterior mean, 80% and 95% credible intervals
-- `traceplot(m1_fit, pars="beta")` plots chains
-- `yrep <- extract(m1_fit, pars = "y_rep")[[1]]` extract samples
-- `bridge_sampler(m1_fit)` calculate marginal likelihood (using `bridgesampling` package)
-- Leave-one-out cross-validation (using `loo` package)
-    - `log_lik_1 = extract_log_lik(m1_fit, merge_chains = F)`
-    - `r_eff_1 = relative_eff(exp(log_lik_1))`
-    - `loo_1 = loo(log_lik_1, r_eff = r_eff_1)`
+```{r}
+summary(m1_fit, pars="beta")
+```
 
-## stan-example1.R
+## `stanfit` object
 
-Run through example script and .stan programs...
+```{r}
+plot(m1_fit, pars="beta")
+```
 
-# A more complicated example
+## `stanfit` object
 
-## 2D mixture model
+```{r}
+traceplot(m1_fit, pars="beta")
+```
+
+## Posterior predictive check
+
+```{r}
+yrep <- extract(m1_fit, pars = "y_rep")[[1]]
+ppc_stat(sleepstudy$Reaction, yrep, stat = "mean")
+```
+
+## Posterior predictive check
+
+```{r}
+# like pp_check()
+ppc_dens_overlay(sleepstudy$Reaction, yrep[sample(nrow(yrep), size = 100),])
+```
+
+## `loo`
+
+Using the [`loo` package](https://cran.r-project.org/web/packages/loo/index.html)
+
+```r
+log_lik_1 = extract_log_lik(m1_fit, merge_chains = F)
+r_eff_1 = relative_eff(exp(log_lik_1))
+loo_1 = loo(log_lik_1, r_eff = r_eff_1)
+```
+
+```{r}
+loo_1
+```
+
+## Marginal likelihood (for Bayes factors)
+
+Using the [`bridgesampling` package](https://cran.r-project.org/web/packages/bridgesampling/index.html)
+
+```r
+ml_1 = bridge_sampler(m1_fit)
+```
+```{r}
+ml_1
+```
+
+# stan-example2.R | fairly complex model
+
+## 2D recall data {.columns-2}
 
 ```{r echo=F}
 
@@ -211,7 +270,18 @@ legend("bottomleft", legend = c("Studied", "Recalled"), col = c("black", "red"),
 par(pty='m', mar=c(5, 4, 4, 2) + 0.1)
 ```
 
-## 2D mixture model
+- Data from a hypothetical study where participants study the location of an item
+- Then recall the location later on
+
+## 2D recall data
+
+`px` & `py` = presented x,y coordinates; `rx` & `ry` = recalled coordinates
+
+```{r}
+head(recall_2d)
+```
+
+## 2D recall data
 
 ```{r, echo=F}
 recall_2d$error = with(recall_2d, sqrt((px-rx)^2 + (py-ry)^2))
@@ -222,7 +292,7 @@ with(recall_2d, lines(density(error , from=0)))
 
 ```
 
-## The model
+## Mixture model
 
 ```
 Distribution of recalled locations = mixture of responses from memory and guesses
@@ -238,7 +308,7 @@ $$
 - $s_i$ = imprecision of memory for individual $i$
 - $A$ = area where responses are allowed
 
-## The model
+## Mixture model
 
 $$
 \mathbf{r}_{ij} \sim m_i \times \phi(\mathbf{p}_j, s_i) + (1 - m_i) \times \frac{1}{A}
@@ -251,15 +321,9 @@ $$
 
 We need priors for the population level parameters, $\mu_m$, $\mu_s$, $\sigma_m$, and $\sigma_s$
 
-## The data
-
-```{r}
-head(recall_2d)
-```
-
 ## example2.stan
 
-```
+```r
 data {
   int<lower=0> N;             // N observations
   int<lower=0> S;             // number of participants
@@ -274,7 +338,7 @@ data {
 
 ## example2.stan
 
-```
+```r
 parameters {
   real mu_m;                  // population mean for m (logit scale)
   real mu_s;                  // population mean for s (log scale)
@@ -294,7 +358,7 @@ $$
 
 ## example2.stan
 
-```
+```r
 model {
   // priors
   sd_m ~ cauchy(0,2.5);
@@ -317,7 +381,7 @@ $$
 
 ## example2.stan
 
-```
+```r
   // likelihood
   for (n in 1:N)
     target += log_mix(inv_logit(m[id[n]]),
@@ -335,4 +399,4 @@ $$
 
 ## stan-example2.R
 
-Run through script
+Run through script...

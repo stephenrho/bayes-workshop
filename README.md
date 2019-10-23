@@ -11,7 +11,7 @@ For this workshop you will need:
 - Some `R` packages, by entering the code below in RStudio
 
 ```
-install.packages(c("brms", "rstan", "bayesplot", "coda")) # this might take a while...
+install.packages(c("brms", "rstan", "bridgesampling", "loo", "bayesplot", "coda")) # this might take a while...
 ```
 
 ## Description
@@ -30,6 +30,25 @@ This workshop will introduce attendees to Bayesian data analysis and the `R` pac
     - model comparison (including Bayes' factors)
 4. Introduce the `Stan` model language and work through some examples
 
+## Materials
+
+### Slides
+
+- `intro.html` - conceptual introduction to Bayesian analysis
+- `brms.html` - introduction to `brms` with examples
+- `stan.html` - introduction to `Stan` with examples
+- `mcmc.html` - introduction to MCMC sampling in Bayesian analysis (optional extra)
+
+The `.Rmd` files used to create slides are also available (you may need extra packages to knit)
+
+### Examples
+
+- `brms-example1.R` - analysis of the `sleepstudy` dataset from the `lme4` package. Reaction times after different amounts of sleep deprivation
+- `brms-example2.R` - analysis of a hypothetical memory study where two groups recall items under two different conditions. Outcome is recall accuracy (see `sim-brms-ex2.R` for code to simulate dataset)
+- `brms-example3.R` - analysis of the `wine` dataset from the `ordinal` package. Ordinal ratings of wine betterness
+- `stan-example1.R` - analysis of the `sleepstudy` dataset with `Stan` (see `stan-models` folder)
+- `stan-example2.R` - analysis of two-dimensional recall data that (I think) cannot be handled by `brms` (see `sim-recall-2D.R` for code to simulate dataset)
+
 ## Prerequisites
 
 This workshop assumes familiarity with:
@@ -38,4 +57,7 @@ This workshop assumes familiarity with:
 - Some probability distributions
 - Linear mixed effects models (users of `lme4` will have a head start)
 
+## Contact
+
+Please send questions/ comments/ suggestions to: srhodes@research.baycrest.org
 

@@ -1,11 +1,11 @@
 ---
-title: "`brms`: Overview and Examples"
+title: "Introduction to `brms`"
 author: "Stephen Rhodes - srhodes@research.baycrest.org"
 date: 'Last updated: `r Sys.Date()`'
 output:
   ioslides_presentation:
+    logo: images/brms.png
     widescreen: yes
-  beamer_presentation: default
 ---
 
 ```{r setup, include=FALSE}
@@ -15,7 +15,6 @@ library(brms)
 library(bayesplot)
 
 load("../examples/brms-example1.RData")
-
 ```
 
 ## Introduction
@@ -39,7 +38,7 @@ load("../examples/brms-example1.RData")
 
 ## `brm()`
 
-```
+```r
 brm(formula, data, family = gaussian(), prior = NULL,
   sample_prior = c("no", "yes", "only"),
   chains = 4, iter = 2000, warmup = floor(iter/2), 
@@ -77,7 +76,7 @@ legend(0, 500, legend = c("Individual", "Average"), col = c("grey", "red"), pch 
 
 ## `get_prior()`
 
-Find parameters to set priors for (below are the defaults used by brms)
+Given an model formula you can find the parameters to set priors for via (below are the defaults used by brms):
 
 ```{r}
 get_prior(Reaction ~ Days, data = sleepstudy, family = gaussian)
@@ -172,7 +171,7 @@ pp_check(m1, nsamples = 100)
 - Particularly useful for posterior predictive checks
 - To use, we need to generate predictive distributions ($y_{rep}$)
 
-## $y_{rep}$
+## $y_{rep}$ via `posterior_predict`
 
 ```{r}
 yrep = posterior_predict(m1)
@@ -180,26 +179,26 @@ yrep = posterior_predict(m1)
 dim(yrep) # row for each step in chain, column for each observation
 ```
 
-## `ppc_stat`
+## `bayesplot::pppc_stat`
 
 ```{r}
 ppc_stat(y=sleepstudy$Reaction, yrep = yrep)
 ```
 
-## `ppc_stat`
+## `bayesplot::ppc_stat`
 
 ```{r}
 ppc_stat(y=sleepstudy$Reaction, yrep = yrep, stat = "min")
 ```
 
-## `ppc_stat_grouped`
+## `bayesplot::ppc_stat_grouped`
 
 ```{r, fig.height=4, fig.width=8}
 ppc_stat_grouped(y=sleepstudy$Reaction, yrep = yrep, 
                  group = sleepstudy$Subject)
 ```
 
-## `marginal_effects` (back to brms)
+## `marginal_effects`
 
 ```{r}
 x = marginal_effects(m1)
@@ -258,7 +257,15 @@ plot(marginal_effects(m2,
 ## Plot random effects
 
 ```{r}
-stanplot(m2, pars = 'r_Subject') # use parnames(m2) for all pars
+stanplot(m2, pars = 'r_Subject') # see next slide on how to find pars
+```
+
+## `parnames`
+
+If you don't know *all* the names of the parameters in your model...
+
+```{r}
+parnames(m2)
 ```
 
 ## m3: random intercept + slope
@@ -345,6 +352,7 @@ loo_compare(m1,m2,m3) # or loo_compare(m1,m2,m3,criterion="waic")
 
 - The `marglik` criterion is calculated by the [`bridgesampling` package](https://cran.r-project.org/web/packages/bridgesampling/index.html)
 - The functions are loaded by `brms`
+- To calculate `marglik` the argument `save_all_pars = T` must be set in `brm()`
 
 ## Bayes factors
 
@@ -371,21 +379,96 @@ $$
 
 # Do things with posterior samples
 
-## Extract samples
+## Extract samples - `posterior_samples`
 
 ```{r}
-m2_days = posterior_samples(m2, pars = "b_Days")[,1]
+m3_days = posterior_samples(m3, pars = "b_Days")[,1]
 ```
 
 ```{r, echo=F}
-hist(m2_days, breaks = 30, border = F, col="lightblue", main="Change in Reaction per Day", xlab="", ylab="", axes=F)
+hist(m3_days, breaks = 30, border = F, col="lightblue", main="Change in Reaction per  (m3)", xlab="", ylab="", axes=F)
 axis(1)
-lines(x = quantile(m2_days, probs = c(.025, .975)), y=c(0,0), lwd=3)
-text(mean(m2_days), 60, labels = sprintf("Mean + 95%% CI:\n%.2f [%.2f, %.2f]", mean(m2_days), 
-                              quantile(m2_days, probs = c(.025)), 
-                              quantile(m2_days, probs = c(.975))))
+lines(x = quantile(m3_days, probs = c(.025, .975)), y=c(0,0), lwd=3)
+text(mean(m3_days), 60, labels = sprintf("Mean + 95%% CI:\n%.2f [%.2f, %.2f]",
+                                         mean(m3_days), 
+                                         quantile(m3_days, probs = c(.025)), 
+                                         quantile(m3_days, probs = c(.975))))
 ```
 
+
+## Use samples to make predictions - `posterior_linpred`
+
+- Alternative to `marginal_effects` (and more flexible)
+- Below we make predictions for a new person (a new level of 'Subject')
+- Predictions are for *expected value* (i.e., 'regression line'; use `posterior_predict` to include residual variance)
+
+```{r}
+newdat = data.frame(Days = 0:9, Subject=100)
+m3_newp_pp = posterior_linpred(m3, # the fitted() function could also work
+                               re_formula = NULL, # default, include random effects
+                               newdata = newdat, 
+                               allow_new_levels=T)
+```
+
+## Use samples to make predictions
+
+Each column represents a row in `newdat` (see previous slide)
+
+```{r}
+head(m3_newp_pp)
+```
+
+## Use samples to make predictions
+
+Predictions for a new 'Subject' (based on 1000 samples from the posterior)
+
+```{r, echo=F}
+# plot 1000 posterior predictions
+plot(NA, xlim=c(1,10), ylim=c(100,500), axes=F, xlab="Days", ylab="Reaction", main="posterior predictions for new person")
+axis(1, at=1:10, labels = 0:9); axis(2)
+invisible(lapply(sample(4000, size = 1000), 
+       function(x) lines(m3_newp_pp[x,], col=rgb(.2,.2,.2,.2))))
+```
+
+## Use samples to make predictions
+
+Below we make predictions for the population
+
+```{r}
+newdat = data.frame(Days = 0:9)
+m3_mean_pp = posterior_linpred(m3, 
+                               newdata = newdat, 
+                               re_formula = NA) # exclude random effects
+```
+
+## Use samples to make predictions
+
+Predictions for the population (based on 1000 samples from the posterior)
+
+```{r, echo=F}
+plot(NA, xlim=c(1,10), ylim=c(200,400), axes=F, xlab="Days", ylab="Reaction", main="posterior predictions for average")
+axis(1, at=1:10, labels = 0:9); axis(2)
+invisible(lapply(sample(4000, size = 1000), 
+       function(x) lines(m3_mean_pp[x,], col=rgb(.2,.2,.2,.2))))
+```
+
+## Use samples to make predictions
+
+Mean and 95% CI (red points are observed means)
+
+```{r, echo=F}
+x = t(apply(m3_mean_pp, 2, FUN = function(x) c(mean=mean(x), quantile(x, probs = c(.025,.975)))))
+x=data.frame(x)
+colnames(x) = c("mean", "lower", "upper")
+
+plot(NA, xlim=c(1,10), ylim=c(200,400), axes=F, xlab="Days", ylab="Reaction", main="posterior predictions for average")
+axis(1, at=1:10, labels = 0:9); axis(2)
+with(x, polygon(x = c(1:10, 10:1), y = c(lower, rev(upper)), col = "lightblue", border = NA))
+with(x, lines(1:10, mean))
+
+with(aggregate(Reaction~Days, FUN = mean, data = sleepstudy), points(Days+1, Reaction, pch=16, type='b', col='red'))
+
+```
 
 # Warning messages
 
@@ -438,8 +521,10 @@ For all possible warnings see: [Brief guide to Stan's warnings](https://mc-stan.
 
 ## brms-example1.R
 
-- This script builds on what we have been looking at so far
-- Let's run through
+- This analysis has been covered in these slides
+- Contains some possible extensions to the models we fit at the end
+- *Note:* I usually wouldn't throw all of these methods (i.e., bridge sampling, Bayes factors, loo, waic, Savage-Dickey, ROPE, CI, HDI) at one problem. This is just to demonstrate the range of `brms`
+- The approach you use will be determined by your goals/ interests (e.g., estimation vs. model comparison vs. null testing)
 
 ## brms-example2.R {.columns-2}
 
@@ -636,4 +721,5 @@ m5 = brm(m5_form, data = sleepstudy,
 - [Signal detection theory](https://vuorre.netlify.com/post/2017/10/09/bayesian-estimation-of-signal-detection-theory-models-part-1/)
 - [Ordinal models](https://journals.sagepub.com/doi/abs/10.1177/2515245918823199)
 - [Monotonic effects](https://psyarxiv.com/9qkhj/)
+- [Bayes factors](https://rpubs.com/lindeloev/bayes_factors)
 
