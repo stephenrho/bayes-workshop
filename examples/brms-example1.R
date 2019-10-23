@@ -8,6 +8,10 @@
 ### does not account for the clustering in the data
 ### (mutliple RTs from the same Subjects) and then 
 ### build on this model to include random effects
+###
+### This example introduces gaussian models in brms,
+### comparing models (loo, waic, bayes_factor),
+### posterior predictive checks, working with posterior samples
 ### ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ ~~~ 
 
 library(brms)
@@ -34,20 +38,38 @@ legend(0, 500, legend = c("Individual", "Average"), col = c("grey", "red"), pch 
 # if you're not sure what priors are needed for your model, you can use 'get_prior()'
 get_prior(Reaction ~ Days, data = sleepstudy, family = gaussian)
 
-priors = c(set_prior("normal(300, 100)", class = "Intercept"),
+priors = c(set_prior("normal(500, 100)", class = "Intercept"),
            set_prior("normal(0, 50)", class = "b"),
            set_prior("cauchy(0, 50)", class = "sigma"))
+
+# prior predictive samples 
+p1 = brm(Reaction ~ Days, data = sleepstudy, 
+         family = gaussian, 
+         prior=priors,
+         sample_prior = "only")
+
+marginal_effects(p1, method="predict")
+marginal_effects(p1, conditions = data.frame(Subject=unique(sleepstudy$Subject)), method="predict")
+# not great, see negative reaction time predictions, but not bad
 
 m1 = brm(Reaction ~ Days, data = sleepstudy, 
          family = gaussian, 
          prior=priors,
-         save_all_pars=T)
+         save_all_pars=T) # for bridgesampling (to get marglik) see below
 
 pp_check(m1, nsamples = 100)
 
 # Model 2: allow intercept to vary by Subject
 priors = c(priors,
            set_prior("cauchy(0, 100)", class = "sd"))
+
+p2 = brm(Reaction ~ Days + (1 | Subject), data = sleepstudy, 
+         family = gaussian, 
+         prior=priors,
+         sample_prior = "only")
+
+marginal_effects(p2, method="predict")
+marginal_effects(p2, conditions = data.frame(Subject=unique(sleepstudy$Subject)), method="predict")
 
 m2 = brm(Reaction ~ Days + (1 | Subject), data = sleepstudy, 
          family = gaussian, 
@@ -66,7 +88,7 @@ m3 = brm(Reaction ~ Days + (1 + Days | Subject), data = sleepstudy,
          family = gaussian, 
          prior=priors,
          save_all_pars=T, 
-         sample_prior = T) # for computing savage-dickey bayes factor below
+         sample_prior = T) # for computing savage-dickey bayes factor - see below
 
 pp_check(m3, nsamples=100)
 
@@ -76,7 +98,6 @@ plot(m3)
 y = sleepstudy$Reaction
 yrep = posterior_predict(m3)
 
-
 ppc_stat(y, yrep, stat = "mean")
 ppc_stat(y, yrep, stat = "sd")
 ppc_stat(y, yrep, stat = "max")
@@ -85,18 +106,18 @@ ppc_stat_grouped(y, yrep, stat = "mean", group = sleepstudy$Subject)
 
 ppc_stat_grouped(y, posterior_predict(m1), stat = "mean", group = sleepstudy$Subject)
 
-
 ## compare the models ----
 
 m1 = add_criterion(m1, c("loo", "waic", "marglik"))
 m2 = add_criterion(m2, c("loo", "waic", "marglik"))
 m3 = add_criterion(m3, c("loo", "waic", "marglik"))
 
-plot(m3$loo)
+# model 3 has some problematic observations (that we will ignore for sake of time)
+# but see https://www.rdocumentation.org/packages/loo/versions/2.1.0/topics/loo-glossary
+# and https://rdrr.io/cran/loo/man/pareto-k-diagnostic.html
 
 loo_compare(m1, m2, m3, criterion = "loo")
 loo_compare(m1, m2, m3, criterion = "waic")
-
 
 bayes_factor(m2,m1)
 bayes_factor(m3,m2)

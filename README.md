@@ -1,9 +1,18 @@
 
-# Bayesian analysis with R using brms and Stan
+# Workshop: Bayesian analysis with R using brms and Stan
 
-- This is where the materials for the Rotman Research Institute workshop on Bayesian analysis will go.
+Here are materials for a workshop on Bayesian analysis at the Rotman Research Institute
 
-- This is a work in progress but the materials will be available before the workshop on the 25th of October.
+For this workshop you will need:
+
+- [R](https://www.r-project.org/)
+- [R Studio](https://www.rstudio.com/)
+- The materials in this repository (click green "Clone or download" button above)
+- Some `R` packages, by entering the code below in RStudio
+
+```
+install.packages(c("brms", "rstan", "bayesplot", "coda")) # this might take a while...
+```
 
 ## Description
 
@@ -21,19 +30,12 @@ This workshop will introduce attendees to Bayesian data analysis and the `R` pac
     - model comparison (including Bayes' factors)
 4. Introduce the `Stan` model language and work through some examples
 
-## Requirements
+## Prerequisites
 
-(More may be added here)
+This workshop assumes familiarity with:
 
-- [R](https://www.r-project.org/)
-- [R Studio](https://www.rstudio.com/)
+- The `R` language
+- Some probability distributions
+- Linear mixed effects models (users of `lme4` will have a head start)
 
-In RStudio type:
 
-```
-install.packages(c("brms", "rstan", "bayesplot", "coda")) # this might take a while...
-```
-
-## Recommended Reading
-
-Check back later...

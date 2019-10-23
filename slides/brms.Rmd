@@ -9,8 +9,10 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = T)
+knitr::opts_chunk$set(echo = T, warning = F, message = F)
+
 library(brms)
+library(bayesplot)
 
 load("../examples/brms-example1.RData")
 
@@ -18,22 +20,13 @@ load("../examples/brms-example1.RData")
 
 ## Introduction
 
-`brms` = Bayesian Regression Models using Stan
+> - `brms` = Bayesian Regression Models using Stan
+> - Created by [Paul-Christian Bürkner](https://github.com/paul-buerkner/brms)
+> - An interface to the [Stan](https://mc-stan.org/) probabilistic programming language + sampling routines
+> - Allows fitting of a huge range of models using `R`'s formula syntax
+> - These slides aim to introduce the main functions
 
-<!--
-## Things to cover in these slides...
-
-- R formula syntax refresher
-- model families
-- ljk prior for correlations
-- lme model
-- distributional model
-- troubleshooting
-- savage dickey and bridgesampling methods for calculating bayes factors
-- loo, waic https://www.rdocumentation.org/packages/loo/versions/2.1.0/topics/loo-glossary
--->
-
-## R formula syntax
+## R formula syntax refresher
 
 |  term  | meaning | 
 | :------: | -------: |
@@ -55,7 +48,8 @@ brm(formula, data, family = gaussian(), prior = NULL,
 
 see `?brm` for more
 
-We'll work through an example with the `sleepstudy` data set from `lme4` (in sleepstudy.csv)
+- We'll work through an example with the `sleepstudy` data set from `lme4` (in examples/sleepstudy.csv)
+- Full example in examples/brms-example1.R
 
 ## sleepstudy
 
@@ -79,6 +73,8 @@ legend(0, 500, legend = c("Individual", "Average"), col = c("grey", "red"), pch 
 
 ```
 
+# Setting priors
+
 ## `get_prior()`
 
 Find parameters to set priors for (below are the defaults used by brms)
@@ -92,7 +88,7 @@ We'll start with a simple model (not acknowledging the clustering in the data)
 ## `set_prior()`
 
 ```r
-priors = c(set_prior("normal(300, 100)", class = "Intercept"),
+priors = c(set_prior("normal(500, 100)", class = "Intercept"),
            set_prior("normal(0, 50)", class = "b"),
            set_prior("cauchy(0, 50)", class = "sigma"))
 ```
@@ -100,12 +96,38 @@ priors = c(set_prior("normal(300, 100)", class = "Intercept"),
 or
 
 ```r
-priors = set_prior("normal(300, 100)", class = "Intercept") +
+priors = set_prior("normal(500, 100)", class = "Intercept") +
            set_prior("normal(0, 50)", class = "b") +
            set_prior("cauchy(0, 50)", class = "sigma")
 ```
 
-## `brm()`
+## `brm()` - sample prior
+
+```r
+p1 = brm(Reaction ~ Days, data = sleepstudy, 
+         family = gaussian, 
+         prior=priors,
+         sample_prior="only")
+```
+
+## Prior Predictive Distribution
+
+```{r, fig.height=3, fig.width=5}
+marginal_effects(p1, method="predict")
+```
+
+- `marginal_effects()` can display the "fitted" regression line (or condition differences)
+- or it can display marginal predictions, as done here for prior samples
+
+## Prior Predictive Distribution
+
+- The predictions of small (and negative!) reaction times are a little worrying
+- We could specify truncation of the data (e.g., `Reaction | trunc(lb=0) ~ ...`)
+- But this is ok for our purposes
+
+# Fitting models
+
+## `brm()` - fit model
 
 ```r
 m1 = brm(Reaction ~ Days, data = sleepstudy, 
@@ -136,14 +158,482 @@ rhat(m1)
 plot(m1)
 ```
 
-## 
+# Posterior predictive checks and marginal effects
+
+## `pp_check`
 
 ```{r}
 pp_check(m1, nsamples = 100)
 ```
 
-## 
+## The `bayesplot` package
+
+- The [`bayesplot` package](https://mc-stan.org/bayesplot/) has lots of functions for plotting Bayesian models (see also `brms::stanplot` function)
+- Particularly useful for posterior predictive checks
+- To use, we need to generate predictive distributions ($y_{rep}$)
+
+## $y_{rep}$
 
 ```{r}
-marginal_effects(m1)
+yrep = posterior_predict(m1)
+
+dim(yrep) # row for each step in chain, column for each observation
 ```
+
+## `ppc_stat`
+
+```{r}
+ppc_stat(y=sleepstudy$Reaction, yrep = yrep)
+```
+
+## `ppc_stat`
+
+```{r}
+ppc_stat(y=sleepstudy$Reaction, yrep = yrep, stat = "min")
+```
+
+## `ppc_stat_grouped`
+
+```{r, fig.height=4, fig.width=8}
+ppc_stat_grouped(y=sleepstudy$Reaction, yrep = yrep, 
+                 group = sleepstudy$Subject)
+```
+
+## `marginal_effects` (back to brms)
+
+```{r}
+x = marginal_effects(m1)
+plot(x)
+```
+
+## `marginal_effects`
+
+```{r}
+head(x$Days)
+```
+
+# Models with random effects
+
+## m2: random intercept
+
+```r
+# need to add a prior for the random participant effect
+priors = c(priors,
+           set_prior("cauchy(0, 100)", class = "sd"))
+
+m2 = brm(Reaction ~ Days + (1 | Subject), data = sleepstudy, 
+         family = gaussian, 
+         prior=priors)
+```
+
+$$
+y_i \sim \mbox{Normal}(\beta_0 + b_{j[i]} + \beta_1x_i, \; \sigma)
+$$
+$$
+b_j \sim \mbox{Normal}(0, \sigma^{(b)})
+$$
+
+## summary (note: Group-Level Effects:)
+
+```{r}
+summary(m2)
+```
+
+## more `marginal_effects`
+
+```{r}
+marginal_effects(m2)
+```
+
+## more `marginal_effects`
+
+Plot marginal effects for participants 1 to 6. `re_formula = NULL` includes random effects (`NA` excludes them, default)
+
+```{r, fig.height=3, fig.width=5}
+plot(marginal_effects(m2, 
+                      conditions = data.frame(Subject=unique(sleepstudy$Subject)[1:6]), 
+                      re_formula = NULL), points=T)
+```
+
+## Plot random effects
+
+```{r}
+stanplot(m2, pars = 'r_Subject') # use parnames(m2) for all pars
+```
+
+## m3: random intercept + slope
+
+```r
+priors = c(priors,
+           set_prior("lkj(1)", class = "cor"))
+           
+m3 = brm(Reaction ~ Days + (1 + Days | Subject), 
+         data = sleepstudy, family = gaussian, 
+         prior=priors) 
+```
+
+$$
+y_i \sim \mbox{Normal}(\beta_0 + b_{0j[i]} + (\beta_1 + b_{1j[i]})x_i, \; \sigma)
+$$
+
+$$
+\begin{pmatrix}
+b_{0j} \\
+b_{1j}
+\end{pmatrix} \sim MVN\left(\begin{pmatrix}
+0 \\
+0
+\end{pmatrix}, \; \Sigma
+\right).
+$$
+
+See [here](https://mc-stan.org/docs/2_18/stan-users-guide/multivariate-hierarchical-priors-section.html) for more detail on multivariate priors
+
+## m3: random intercept + slope
+
+```{r}
+summary(m3)
+```
+
+## m3: random intercept + slope
+
+```{r, fig.height=3, fig.width=5}
+plot(marginal_effects(m3, 
+                      conditions = data.frame(Subject=unique(sleepstudy$Subject)[1:6]), 
+                      re_formula = NULL), points=T)
+```
+
+# Comparing models
+
+## `add_criterion`
+
+- Add model fit criteria to the model objects
+- Can add
+    - approximate loo (via psis)
+    - waic
+    - k-fold cross validation
+    - $R^2$ (more [here](https://www.tandfonline.com/doi/abs/10.1080/00031305.2018.1549100))
+    - marginal likelihood (via bridge sampling)
+
+## `add_criterion`
+
+```r
+m1 = add_criterion(m1, c("loo", "waic", "marglik"))
+m2 = add_criterion(m2, c("loo", "waic", "marglik"))
+m3 = add_criterion(m3, c("loo", "waic", "marglik"))
+```
+
+```{r}
+m1$loo
+```
+
+## `loo_compare`
+
+```r
+m1 = add_criterion(m1, c("loo", "waic", "marglik"))
+m2 = add_criterion(m2, c("loo", "waic", "marglik"))
+m3 = add_criterion(m3, c("loo", "waic", "marglik"))
+```
+
+```{r}
+loo_compare(m1,m2,m3) # or loo_compare(m1,m2,m3,criterion="waic")
+```
+
+- `abs(elpd_diff)` > 2*`se_diff` favors top model (more on loo [here](https://cran.r-project.org/web/packages/loo/vignettes/loo2-example.html#comparing-the-models-on-expected-log-predictive-density))
+
+## Bayes factors
+
+- The `marglik` criterion is calculated by the [`bridgesampling` package](https://cran.r-project.org/web/packages/bridgesampling/index.html)
+- The functions are loaded by `brms`
+
+## Bayes factors
+
+```{r}
+bayes_factor(m2, m1)
+bayes_factor(m3, m2)
+```
+
+```{r}
+post_prob(m1, m2, m3, prior_prob = c(1/3, 1/3, 1/3))
+```
+
+$$
+\frac{p(M_1 \mid y)}{p(M_2 \mid y)} = B_{1,2} \times \frac{p(M_1)}{p(M_2)}
+$$
+
+## To calculate each criterion separately
+
+- `loo()`
+- `waic()`
+- `kfold()`
+- `bayes_R2()`
+- `bridge_sampler()`
+
+# Do things with posterior samples
+
+## Extract samples
+
+```{r}
+m2_days = posterior_samples(m2, pars = "b_Days")[,1]
+```
+
+```{r, echo=F}
+hist(m2_days, breaks = 30, border = F, col="lightblue", main="Change in Reaction per Day", xlab="", ylab="", axes=F)
+axis(1)
+lines(x = quantile(m2_days, probs = c(.025, .975)), y=c(0,0), lwd=3)
+text(mean(m2_days), 60, labels = sprintf("Mean + 95%% CI:\n%.2f [%.2f, %.2f]", mean(m2_days), 
+                              quantile(m2_days, probs = c(.025)), 
+                              quantile(m2_days, probs = c(.975))))
+```
+
+
+# Warning messages
+
+## Divergent transitions
+
+```r
+1: There were 15 divergent transitions after warmup. Increasing adapt_delta above 0.8 may help. 
+2: Examine the pairs() plot to diagnose sampling problems
+```
+
+Could be:
+- The steps taken are too big; in which case, increase `adapt_delta`
+- The model needs to be reparameterized (in which case the above will not help. More [here](https://mc-stan.org/docs/2_18/stan-users-guide/reparameterization-section.html))
+
+
+## Divergent transitions
+
+```r
+1: There were X divergent transitions after warmup. 
+Increasing adapt_delta above 0.8 may help. 
+2: Examine the pairs() plot to diagnose sampling problems
+```
+
+- `adapt_delta` controls the size of sampling steps, increasing leads to smaller steps
+- To increase, add `control = list(adapt_delta = 0.95))` (or another value > .8) to the `brm()` call
+
+## Maximum treedepth exceeded
+
+```r
+## Warning: There were X transitions after warmup that exceeded the maximum treedepth.
+Increase max_treedepth above 10.
+See ## http://mc-stan.org/misc/warnings.html#maximum-treedepth-exceeded
+```
+
+- The No-U Turn Sampler is being stopped too early (to avoid long run time)
+- Can be increased via `control = list(max_treedepth = 15))` (or another value > 10)
+- Sometimes also indicates that model should be reparameterized (see [here](https://mc-stan.org/docs/2_18/reference-manual/hmc-algorithm-parameters.html))
+
+## Convergence Failure
+
+```r
+## Warning: The model has not converged (some Rhats are > 1.1). 
+Do not analyse the results! 
+## We recommend running more iterations and/or setting stronger priors.
+```
+
+For all possible warnings see: [Brief guide to Stan's warnings](https://mc-stan.org/misc/warnings.html#compiler-warnings)
+
+# Examples
+
+## brms-example1.R
+
+- This script builds on what we have been looking at so far
+- Let's run through
+
+## brms-example2.R {.columns-2}
+
+```{r, echo=F, fig.height=5, fig.width=5}
+dat <- read.csv("../examples/accuracy-data.csv")
+
+dat = within(dat, {
+  id = as.factor(id)
+  item = as.factor(item)
+  condition = as.factor(condition)
+  group = as.factor(group)
+})
+
+dat_agg = aggregate(acc ~ id + condition + group, data = dat, FUN = mean)
+
+dat_means = aggregate(acc ~ condition + group, data = dat, FUN = mean)
+
+## plot individuals and means...
+cols_l = viridis::viridis(2, begin = .2, end = .8, alpha = .5)
+cols_d = viridis::viridis(2, begin = .2, end = .8)
+
+ids = list()
+ids[[1]] = 1:20
+ids[[2]] = 21:40
+
+jitts = c(-.05, .05) # so groups are side-by-side
+
+plot(NA, xlim=c(.7, 2.3), ylim=c(0,1), xlab="Condition", ylab="Accuracy", axes=F)
+axis(1, at=1:2, labels = c("A", "B"))
+axis(2)
+
+for (g in c(1, 2)){
+  # individual data points
+  lapply(ids[[g]], function(x) with(subset(dat_agg, id==x), points(jitter(as.numeric(condition)+jitts[g], amount = .025), acc, pch=16, col=cols_l[g], type='p')))
+}
+for (g in c(1, 2)){
+  with(subset(dat_means, group==g), points(as.numeric(condition), acc, pch=21, bg=cols_d[g], type='b'))
+}
+legend(x = 1.5, y = .2, legend = c("1", "2"), pch = 21, pt.bg = cols_d, title = "Group", xjust = .5, yjust=.5, bty='n')
+
+
+```
+
+- Hypothetical data from a memory experiment
+- Recall accuracy for two groups under two conditions
+- The same items appear in both conditions
+- `bernoulli(link = "logit")`
+
+## brms-example3.R {.columns-2}
+
+```{r, echo=F, fig.height=5, fig.width=5}
+wine <- read.csv("../examples/wine.csv")
+
+wine_means = aggregate(rating ~ contact + temp, data = wine, FUN = mean)
+
+plot(NA, xlim=c(.7, 2.3), ylim=c(.5,5.5), xlab="Temp", ylab="Rating", axes=F)
+axis(1, at=1:2, labels = c("Cold", "Warm"))
+axis(2)
+
+for (cont in c(1,2)){
+  cont_l = c("no", "yes")[cont]
+    # individual data points
+  lapply(1:9, function(x) with(subset(wine, judge==x & contact==cont_l), points(jitter(as.numeric(temp)+jitts[cont], amount = .025), rating, pch=16, col=cols_l[cont], type='p')))
+}
+
+for (cont in c(1,2)){
+  cont_l = c("no", "yes")[cont]
+  with(subset(wine_means, contact==cont_l), points(as.numeric(temp), rating, pch=21, bg=cols_d[cont], type='b'))
+}
+
+legend(x = 1.5, y = 5.5, legend = c("No", "Yes"), pch = 21, pt.bg = cols_d, title = "Contact", xjust = .5, yjust=1, bty='n')
+
+```
+
+- Uses the [`wine` dataset](https://rdrr.io/rforge/ordinal/man/wine.html) from the `ordinal` package
+- Temperature and whether there was contact between juice and skin during production
+- Rating of bitterness
+- `cumulative(link = "probit")`
+
+## brms-example3.R
+
+```{r, echo=F}
+
+curve(dnorm(x), from=-4, to = 4, n = 10000, xlab="", ylab="", axes=F, lwd=2, ylim=c(0, dnorm(0)*1.1))
+
+curve(dnorm(x, mean = .5), from=-4, to = 4, n = 10000, xlab="", ylab="",
+      lwd=2, col="violet", add = T)
+
+axis(1)
+
+thresh = seq(-2, 2, length.out = 4)
+abline(v = thresh, lty=2, col="red")
+
+text(x = thresh, y = dnorm(0)*1.1, labels = c(as.expression(bquote(tau[1])),
+                                          as.expression(bquote(tau[2])),
+                                          as.expression(bquote(tau[3])),
+                                          as.expression(bquote(tau[4]))
+                                          ), adj =-.2)
+
+```
+
+More about the cumulative model [here](https://journals.sagepub.com/doi/abs/10.1177/2515245918823199)
+
+# More model families
+
+## `family`
+
+This workshop covers `gaussian`, `bernoulli/binomial`, and `cumulative` families as they will probably be most used by psychologists. Others that might be useful:
+
+- `von_mises` for circular data
+- `multinomial` for multiple categorical outcomes
+- `lognormal` for positively skewed distributions (many options)
+
+See `?brmsfamily` for a full range
+
+# Additional functionality | stuff we didn't cover but might be useful to you
+
+## Including known standard errors
+
+`brms` allows to include standard errors for meta-analyses
+
+```r
+fit1 <- brm(y | se(sey) ~ x, data = dat)
+```
+
+Alternatively, you can do weighted regression
+
+```r
+fit1 <- brm(y | weights(wy) ~ x, data = dat)
+```
+
+See details in `?brmsformula` for more
+
+## Censored and truncated data
+
+For censored data, you need to specify type of censoring (left, right, interval) and the bound for interval censoring (see `?brmsformula`)
+
+```r
+fit1 <- brm(y | cens(censored) ~ x, data = dat)
+```
+
+If the outcome has a truncated range, this can be specified:
+
+```r
+fit1 <- brm(y | trunc(lb = 0, ub = 100) ~ x, data = dat)
+```
+
+## Monotonic effects
+
+From brms-example1.R
+
+- For an ordinal predictor we can treat it as a monotonic predictor where differences between adjacent levels are not assumed to be equal
+- Instead `mo()` allows you to model the effect of the predictor to be monotonically increasing or decreasing (but not linear)
+- see `vignette("brms_monotonic")` for more
+
+```r
+m4 = brm(Reaction ~ mo(Days) + (1 + mo(Days) | Subject), data = sleepstudy, 
+         family = gaussian, 
+         prior=priors
+```
+
+## Smooth terms
+
+It is possible to use functions from the [`mgcv` package](https://cran.r-project.org/web/packages/mgcv/index.html) to implement generalized additive models
+
+```r
+fit1 <- brm(y ~ s(x), data = dat)
+```
+
+See this [blog](https://www.fromthebottomoftheheap.net/2018/04/21/fitting-gams-with-brms/) for more detail
+
+## Distributional regression
+
+From brms-example1.R
+
+- `brms` allows you to model other parameters of the response distribution
+- In this case, `sigma` (residual variance) is allowed to vary with Days of sleep deprivation
+
+```r
+m5_form = bf(Reaction ~ Days + (1 + Days | Subject), 
+             sigma ~ Days)
+            
+priors = priors +
+         set_prior("cauchy(0, 50)", class = "b", dpar = "sigma")
+
+m5 = brm(m5_form, data = sleepstudy, 
+         family = gaussian, 
+         prior=priors)
+```
+
+## Useful Links
+
+- https://cran.r-project.org/web/packages/brms/vignettes/ (includes articles on using `brms`)
+- [Signal detection theory](https://vuorre.netlify.com/post/2017/10/09/bayesian-estimation-of-signal-detection-theory-models-part-1/)
+- [Ordinal models](https://journals.sagepub.com/doi/abs/10.1177/2515245918823199)
+- [Monotonic effects](https://psyarxiv.com/9qkhj/)
+

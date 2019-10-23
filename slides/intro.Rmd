@@ -17,7 +17,17 @@ library(bayesplot)
 load("../examples/brms-example1.RData")
 ```
 
-## Overview
+## Workshop Overview
+
+We will cover:
+
+- A conceptual introduction to Bayesian analysis (+ MCMC sampling basics)
+- The `brms` package (with example analyses)
+- The `Stan` model language (if there's time)
+
+I've tried to include links throughout that will be useful when you come to run your own Bayesian analyses
+
+## Intro Overview
 
 - Why go Bayesian?
 - Introduction to Bayesian analysis
@@ -32,9 +42,15 @@ load("../examples/brms-example1.RData")
 
 ## Why go Bayesian?
 
-> - It tells you what you want to know. Given the data,
->     - What interval contains an unobserved parameter with .95 (or some other) probability?
->     - What's the relative weight of evidence for one model (e.g., 'null') vs. another (e.g., an alternative).
+It tells you what you want to know.
+
+Given the data (and our prior knowledge),
+
+> - What interval contains an unobserved parameter with .95 (or some other) probability?
+> - What's the relative weight of evidence for one model (e.g., 'null') vs. another (e.g., an alternative).
+
+## Why go Bayesian?
+
 > - We almost always have some prior knowledge of reasonable parameter values - this should be incorporated
 > - Results are not dependent on a 'sampling plan' (see, e.g., Kruschke & Liddell, 2018 for more)
     
@@ -92,9 +108,158 @@ lines(x, po, type='b', col=cols[3])
 ```
 -->
 
-## Conceptual example
+# Likelihood | $p(y \mid \theta)$
 
-Linear regression:
+## Likelihood
+
+Some fake data we'll assume comes from a normal distribution. Think of it as time (in seconds) to read a short passage of text for 30 individuals. 
+
+Goal is to estimate mean reading time ($\mu$) and variability ($\sigma$)
+
+```{r, echo=F}
+set.seed(1234)
+Y = rnorm(30, 30, 10)
+hist(Y, xlab='', main=sprintf("M = %.2f, SD = %.2f", mean(Y), sd(Y)), breaks = 10)
+```
+
+## Likelihood
+
+For this example we can assume the observations are independent and $f$ is the normal pdf
+
+$$
+p(\mathbf{\theta \mid y}) = \prod^i f(\theta \mid y_i)
+$$
+
+For an introduction, see [Etz (2018)](https://journals.sagepub.com/doi/pdf/10.1177/2515245917744314)
+
+## Likelihood
+
+In `R`:
+
+```{r}
+# likelihood of data for mu = 5, and sd = 10
+prod(dnorm(x = Y, mean = 5, sd = 10)) # or exp(sum(dnorm(Y, 5, 10, log = T)))
+```
+
+If we were doing maximum likelihood estimation we could use `optim` to search for the parameters that maximize the above (or minimize the negative log likelihood).
+
+For Bayesian estimation we use the likelihood to *update* our prior beliefs in different parameter values.
+
+## Likelihood
+
+```{r, echo=F}
+
+ll_norm = function(y, mu, sigma){
+  ll = 0
+  for (i in y){
+    ll = ll + dnorm(i, mean = mu, sd = sigma, log = T)
+  }
+  return(ll)
+}
+
+mu = seq(10, 50, length.out = 100)
+sigma = seq(1, 30, length.out = 100)
+
+ll_mat = matrix(NA, ncol = length(mu), nrow = length(sigma))
+
+for (i in 1:length(sigma)){
+  for (j in 1:length(mu)){
+    ll_mat[i,j] = ll_norm(y=Y, mu = mu[j], sigma = sigma[i])
+  }
+}
+
+par(mfrow=c(1,2))
+
+persp(x = sigma, y = mu, z = exp(ll_mat), theta = 45, phi=15, zlab = "Likelihood")
+
+contour(x = sigma, y = mu, z = exp(ll_mat), xlab=bquote(sigma), ylab=bquote(mu), nlevels = 15, drawlabels = F, xlim=c(5, 15), ylim=c(20, 40))
+#points(10, 30, col='red', pch=16, cex=2)
+
+```
+
+# Prior | $p(\theta)$
+
+## Prior
+
+- What are our expectations for parameters before seeing the data?
+- We will try to use "weakly informative priors" - one possible definition below (from [here](https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations))
+
+*"Weakly informative prior should contain enough information to regularize: the idea is that the prior rules out unreasonable parameter values but is not so strong as to rule out values that might make sense"*
+
+## Prior
+
+Going back to our reading time example, say we have a fairly good idea of the reading rate (words per second) of the general population:
+
+- For the passage we gave participants we expect an average time of 40, but it could range from 20 to 60
+- Here we might choose a Normal(mean = 40, sd = 10) prior for $\mu$
+
+## Prior
+
+For the standard deviation of reading times ($\sigma$), we might be less certain:
+
+- We expect people to vary on average around 10s, but we can't rule out larger values
+- A reasonable choice would be a half-Cauchy(scale = 10) prior on $\sigma$
+- Other possible choices: gamma, uniform, $t$, see [Gelman (2006)](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf) for discussion
+
+## Prior
+
+We can specify the priors separately
+
+```{r, echo=F}
+
+par(mfrow=c(1,2))
+
+curve(dnorm(x, mean = 40, sd = 10), from=10, to=70, main=bquote("Prior on"~mu), xlab="", ylab="", axes=F, col = "forestgreen", lwd=2)
+box(); axis(1)
+
+curve(dcauchy(x, scale = 10), from=0, to=50, main=bquote("Prior on"~sigma), xlab="", ylab="", axes=F, col = "tomato", lwd=2)
+box(); axis(1)
+```
+
+## Prior
+
+But they determine a joint distribution
+
+```{r, echo=F}
+
+prior_mat = matrix(NA, ncol = length(mu), nrow = length(sigma))
+
+for (i in 1:length(sigma)){
+  for (j in 1:length(mu)){
+    p_s = bayesmeta::dhalfcauchy(x = sigma[i], scale = 10)
+    p_m = dnorm(x = mu[j], mean = 40, sd = 10)
+    prior_mat[i,j] = p_s*p_m
+  }
+}
+
+par(mfrow=c(1,2))
+
+persp(x = sigma, y = mu, z = prior_mat, theta = 45, phi=15, zlab = "Prior")
+
+contour(x = sigma, y = mu, z = prior_mat, xlab=bquote(sigma), ylab=bquote(mu), nlevels = 15, drawlabels = F)
+#points(10, 30, col='red', pch=16, cex=2)
+
+```
+
+## Bayesian Estimation
+
+```{r, echo=F, fig.height=4, fig.width=9}
+
+par(mfrow=c(1,3))
+
+post_mat = exp(ll_mat)*prior_mat
+
+contour(x = sigma, y = mu, z = prior_mat, xlab=bquote(sigma), ylab=bquote(mu), nlevels = 15, drawlabels = F, main="Prior")
+
+contour(x = sigma, y = mu, z = exp(ll_mat), xlab=bquote(sigma), ylab=bquote(mu), nlevels = 15, drawlabels = F, main="Likelihood")
+
+contour(x = sigma, y = mu, z = post_mat, xlab=bquote(sigma), ylab=bquote(mu), nlevels = 15, drawlabels = F, main = "Posterior")
+
+```
+
+## Prior
+
+Another example, linear regression:
 
 $$
 y_i = \beta_0 + \beta_1x_i + \epsilon_i
@@ -110,23 +275,74 @@ $$
 y_i \sim \mbox{Normal}(\beta_0 + \beta_1x_i, \sigma)
 $$
 
-## Conceptual example
+<!--
+## Prior
 
-We need a prior, $p(\beta_0, \beta_1, \sigma)$
+- We need a prior, $p(\beta_0, \beta_1, \sigma)$
+- Typically, we will have some expectation for reasonable outcome values (e.g., % accuracy, reaction time, test score)
+- We'll try to use *"weakly informative priors*
+-->
+
+## Prior
 
 If $x$ and $y$ have been scaled ($z$-scored), a reasonable choice would be:
 
 - $\beta_0 \sim \mbox{Normal}(0, 3)$
 - $\beta_1 \sim \mbox{Normal}(0, 3)$
-- $\sigma \sim \mbox{Cauchy}(0, 2.5)^{+}$
+- $\sigma \sim \mbox{half-Cauchy}(2.5)$
 
-## Conceptual example
+## Prior
 
 These priors essentially say that we expect either a positive or negative relationship between $x$ and $y$. 
 
 If we had strong reason to expect that $y$ should increase with $x$ we could instead use:
 
-- $\beta_1 \sim \mbox{Normal}(0, 3)^{+}$
+- $\beta_1 \sim \mbox{Normal}^{+}(0, 3)$ (where the "+" means only positive values. Same as a half or folded normal)
+
+## Prior - correlation
+
+- For lme models with correlated random effects, we'll need a prior for the correlation matrix (in other work you might see people put a prior on the covariance matrix)
+- `brms` and `Stan` use the LJK prior (after [Lewandowski Kurowicka, & Joe, 2009](https://www.sciencedirect.com/science/article/pii/S0047259X09000876))
+- It has one parameter, $\eta$
+
+## Prior - correlation
+
+![](images/lkj_prior.png)
+
+Image from [here](https://www.psychstatistics.com/2014/12/27/d-lkj-priors/)
+
+## Aside on lme4 convergence
+
+- For models with lots of random effects `lme4` convergence can be an issue
+- This usually isn't an `lme4` problem - [the model is too complex to be supported by the data](https://arxiv.org/pdf/1506.04967.pdf)
+- With the additional regularizing information in the prior, this should not be an issue in brms/Stan (see, e.g., this [blog](http://babieslearninglanguage.blogspot.com/2018/02/mixed-effects-models-is-it-time-to-go.html))
+- So it should be possible to ['keep it maximal'](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3881361/)
+- [Some](https://arxiv.org/pdf/1506.04967.pdf) still suggest that random effects structure should be simplified on grounds of parsimony (e.g., remove if the 95% credible interval for a random SD or correlation includes zero)
+
+## Prior - Summary
+
+- Setting priors can be tricky (slide after next has useful links)
+- When estimating parameters the main thing is to not be too restrictive (you want to let the data 'speak' and not rule out certain values without good reason)
+- For complex models (e.g., those with transformations of prameters), assessing whether the prior actually expresses what we expect can be difficult
+- It can be useful to look at the *prior predictive distribution*, which is essentially many simulated data sets using parameters drawn from the prior (extra slides on this at the end)
+- Typically, we will have enough data to 'overwhelm' the prior
+- If you are worried that you do not, you can do sensitivity analyses (i.e., check how much your conclusions depend on the prior)
+
+## Prior - Summary
+
+- For model comparison and particularly hypothesis testing with Bayes factors priors should be selected much more carefully
+- The different models you are comparing are defined by their priors
+- So they should reflect reasonable alternatives
+- For example, comparing a model with a parameter (e.g., mean difference) to one without, if the prior on the parameter is very diffuse (e.g., a normal with large SD) you will likely get strong evidence for the null
+
+## Useful papers/ links on priors
+
+- https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
+- https://mc-stan.org/users/documentation/case-studies/weakly_informative_shapes.html
+- https://magesblog.com/post/2018-08-02-use-domain-knowledge-to-review-prior-predictive-distributions/
+- [Schad et al. pre-print](https://arxiv.org/abs/1904.12765)
+- [Gelman et al. (2017)](http://www.stat.columbia.edu/~gelman/research/published/entropy-19-00555-v2.pdf)
+- [Gelman (2006)](http://www.stat.columbia.edu/~gelman/research/published/taumain.pdf)
 
 # MCMC Sampling
 
@@ -146,7 +362,7 @@ Goal of MCMC - to approximate a target distribution
 
 ## MCMC
 
-- The slides [mcmc](mcmc.html) introduce the basics of MCMC in Baysian analyses via a simple Metropolis Hastings algorithm (see metropolis.example.R)
+- The slides [mcmc](mcmc.html) introduce the basics of MCMC in Bayesian analyses via a simple Metropolis Hastings algorithm (see metropolis.example.R)
 - The important points are:
     - MCMC generates a chain of samples
     - Once the chain has *converged* on a stable distribution, parameter values are visited in proportion to their posterior probability/ density
@@ -165,7 +381,7 @@ library(coda)
 ```
 
 - Burn in (or warm up)
-- Autocorrelation
+- Auto-correlation
 - Effective Sample Size (ESS)
 - Convergence and the Potential Scale Reduction Factor (PSRF)
 - Thinning
@@ -179,6 +395,8 @@ samples3 = metropolis_iq(y = Y, prior_mean = prior_m, prior_sd = prior_sd, propo
 plot(samples3, xlab = "Step", ylab = bquote(mu), type="l", col="blue")
 
 ```
+
+Note: Warm up for brms/Stan is more complicated and serves to tune the sampling parameters
 
 ## Autocorrelation
 
@@ -202,13 +420,13 @@ autocorr.plot(as.mcmc(samples), auto.layout = F)
 
 ## Effective Sample Size
 
-A way of estimating the number of independent samples once accounting for autocorrelation:
+A way of estimating the number of independent samples once accounting for auto-correlation:
 
 $$
 ESS = \frac{N}{1 + 2\sum_{k = 1}^{\infty} \rho_k}
 $$
 
-Where $\rho_k$ is the autocorrelation at lag $k$. Think of this as dividing the number of samples by the amount of autocorrelation. In practice the sum stops when the autocorrelation is small (e.g. $\rho_k < 0.05$; see Kruschke, 2015, p. 184).
+Where $\rho_k$ is the auto-correlation at lag $k$. Think of this as dividing the number of samples by the amount of auto-correlation. In practice the sum stops when the auto-correlation is small (e.g. $\rho_k < 0.05$; see Kruschke, 2015, p. 184).
 
 ## Convergence
 
@@ -229,9 +447,10 @@ abline(v = 100, col="red", lty=2)
 ## Convergence
 
 > - Run multiple sequences (*chains*) with different starting points
-> - Compare variation between different chains to variation within chains. When these are approximately equal we can claim to have converged on the target distribution.
-> - This is measured via $\hat{R}$ and conventionally a value $< 1.1$ is considered converged.
-> - $\hat{R}$ is also referred to as the Gelman-Rubin convergence diagnostic or the Potential Scale Reduction Factor (PSRF).
+> - Compare variation between different chains to variation within chains. When these are approximately equal we can claim to have converged on the target distribution
+> - This is measured via $\hat{R}$ and conventionally a value $< 1.1$ is considered converged
+> - $\hat{R}$ is also referred to as the Gelman-Rubin convergence diagnostic or the Potential Scale Reduction Factor (PSRF)
+> - The $\hat{R}$ calculated by brms/Stan is slighly different (also compares the beginning and end of the same chain; see Gelman et al., 2014, pages 284-286)
 
 ## Convergence
 
@@ -285,9 +504,9 @@ autocorr.plot(as.mcmc(samples8[seq(1, 10000, 100)]), auto.layout = F, main = "Ke
 
 ## Thinning
 
-- If autocorrelation is really bad thinning might help, but it might suggest deeper problems with your model (see Gelman et al., 2014)
-- It has been claimed that thinning is "often unnecessary and always inefficient" ([Link & Eaton, 2012](https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/j.2041-210X.2011.00131.x)). 
-- Often it is better to keep the full chains.
+- If auto-correlation is really bad thinning might help, but it might suggest deeper problems with your model (see Gelman et al., 2014)
+- It has been claimed that thinning is "often unnecessary and always inefficient" ([Link & Eaton, 2012](https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/j.2041-210X.2011.00131.x))
+- Often it is better to keep the full chains
 
 # Posterior Predictive Checking
 
@@ -311,13 +530,13 @@ pp_check(m1, nsamples=100)
 
 ## Posterior Predictive Checking
 
-- We can also caculate specific quantities (e.g., max, min, mean) for each posterior predictive sample and compare to those from the observed data set
+- We can also calculate specific quantities (e.g., max, min, mean) for each posterior predictive sample and compare to those from the observed data set
 - If a particular statistic ($T$) from the observed data is rare under the model predictions, this is indicative of misfit
 
 ## Posterior Predictive Checking
 
 ```{r, echo=F}
-ppc_stat(sleepstudy$Reaction , posterior_predict(m1), stat = "min")
+ppc_stat(sleepstudy$Reaction, posterior_predict(m1), stat = "min")
 ```
 
 ## Posterior Predictive Checking
@@ -326,9 +545,9 @@ ppc_stat(sleepstudy$Reaction , posterior_predict(m1), stat = "min")
 ppc_stat_grouped(sleepstudy$Reaction , posterior_predict(m1), group=sleepstudy$Subject, stat = "mean")
 ```
 
-# Model comparison
+# Model Comparison
 
-## Model comparison
+## Model Comparison
 
 - Out-of-sample prediction accuracy
     - Approximate leave-one-out cross validation (LOO)
@@ -339,17 +558,17 @@ ppc_stat_grouped(sleepstudy$Reaction , posterior_predict(m1), group=sleepstudy$S
 
 ## LOO and WAIC
 
-Both try to estimate the *expected log predictive density* (elpd) for a new data set
+Both try to estimate the *expected log predictive density* (elpd) for new data
 
-- LOO can be approximated by [importance sampling](https://en.wikipedia.org/wiki/Importance_sampling), specifically we will use parieto smoothed importance sampling (psis) as implemented in the `loo` package
+- LOO can be approximated by [importance sampling](https://en.wikipedia.org/wiki/Importance_sampling), specifically we will use Pareto smoothed importance sampling (psis) as implemented in the `loo` package (see [Vehtari et al., 2017](https://arxiv.org/pdf/1507.04544.pdf) for details)
 - WAIC is a Bayesian extension of AIC ([Watanabe, 2010](http://www.jmlr.org/papers/volume11/watanabe10a/watanabe10a.pdf)). It essentially estimates the effective number of parameters of the model and uses this to penalize its predictive accuracy
 
-Larger elpd is better but note that LOO and WAIC are often reported on deviance scale (multiplied by -2), in which case smaller values indicate better fit
+Larger elpd is better but note that LOO and WAIC are often reported on deviance scale (multiplied by -2), in which case smaller values indicate better fit.
 
 ## LOO and WAIC
 
-- Asymtotically, WAIC and LOO should the the same, although LOO is advocated for more strongly where possible (see [Vehtari et al., 2017](https://arxiv.org/pdf/1507.04544.pdf))
-- When not possible (as we'll see in some `brms` examples), $K$-fold cross validation can be used
+- Asymptotically, WAIC and LOO should the the same, although LOO is advocated for more strongly where possible (see [Vehtari et al., 2017](https://arxiv.org/pdf/1507.04544.pdf))
+- When not possible (as we might see in some `brms` examples), $K$-fold cross validation can be used
 
 ## Bayes factors
 
@@ -362,7 +581,7 @@ $$
 $$
 
 - The Bayes factor, $B$, is the 'updating factor'
-- How much does our belief in model 1 over model 2 change, having seen the data
+- How much does our belief in model 1 over model 2 change, having seen the data?
 
 ## Marginal Likelihood
 
@@ -382,11 +601,11 @@ $$
 
 - Each sample in the chain is a point in the joint parameter space
 - For inference, we'll focus on the marginal distribution of each parameter of interest
-- Usually we'll be interested in the mean, median, and quantiles of the posterior
+- Usually we'll be interested in the mean/median and quantiles of the posterior
 
 ## Credible interval and highest density interval
 
-You'll see both of these around...
+You will see both of these around...
 
 - **95% Credible Interval:** the 2.5% to 97.5% quantiles (output by default in brms)
 - **95% Highest Density Interval:** an interval containing 95% of the posterior mass such that *values contained within the interval have higher posterior density than values outside the interval* (can use `HDInterval::hdi()` to calculate)
@@ -431,11 +650,40 @@ text(x=mean(asym), y=.25*max(h1$density), labels = sprintf("CI: [%.2f, %.2f]", a
 
 ```
 
+# Assessing null values with one model fit
+
+## ROPE
+
+Region Of Practical Equivalence
+
+- Requires setting a boundary around some value (e.g., zero)
+- Values within the boundary are considered *"practically equivalent"* to the chosen value
+
+## ROPE
+
+```{r, echo=F}
+
+plot_hdi_y = function(lower, upper, y=1){
+  segments(x0 = lower, y0 = y, x1 = upper, y1 = y, lwd=2)
+}
+
+plot(NA, xlim=c(-.2, .6), ylim = c(0,3), xlab = "Value of interest (95% HDIs)", ylab="", axes=F)
+axis(1)
+abline(v = c(-.15, .15), col="red", lty=2)
+
+text(x = 0, y = 3, labels = "ROPE", col="red")
+
+plot_hdi_y(.1, .25, y = 2.5); text(x = .35, y = 2.5, "Neither accept\nor reject", adj=0)
+plot_hdi_y(.2, .3, y = 1.5); text(x = .35, y = 1.5, "Reject null\nvalue", adj=0)
+plot_hdi_y(.05, .13, y = 0.5); text(x = .35, y = 0.5, "Accept null\nvalue", adj=0)
+
+```
+
 ## The Savage-Dickey Bayes factor
 
 - AKA the Savage-Dickey density ratio (see [Wagenmakers et al., 2010](https://www.sciencedirect.com/science/article/pii/S0010028509000826) for an introduction)
 - For a point hypothesis regarding a parameter value, we compare the height of the posterior distribution to the height of the prior distribution *at that particular value*
-- The relative height of the posterior and prior tells us how much our beleive *in that particular* value has changed after seeing the data
+- The relative height of the posterior and prior tells us how much our belief *in that particular* value has changed after seeing the data
 
 ## The Savage-Dickey Bayes factor
 
@@ -491,4 +739,98 @@ Further reading:
 
 - Kruschke (2015). [Doing Bayesian Data Analysis: A Tutorial with R, JAGS, and Stan.](https://www.sciencedirect.com/book/9780124058880/doing-bayesian-data-analysis) Chapter 7.
 - Gelman et al. (2014). [Bayesian Data Analysis (3rd edition).](http://www.stat.columbia.edu/~gelman/book/) Chapters 6, 11 and 12.
+- McElreath (2015). [Statistical Rethinking](https://xcelab.net/rm/statistical-rethinking/)
 - Kruschke, J. K., & Liddell, T. M. (2018). [The Bayesian New Statistics: Hypothesis testing, estimation, meta-analysis, and power analysis from a Bayesian perspective.](https://link.springer.com/article/10.3758/s13423-016-1221-4) Psychonomic Bulletin & Review, 25(1), 178-206.
+
+# Extra slides
+
+## Prior Predictive Distribution
+
+- When setting priors for complex models it can be useful to look at the distribution of data implied by the prior distribution
+- We can simulate data from draws from the prior distribution
+- Do these predictions fall within a reasonable range? Domain expertise needed here
+
+The next slides show examples of simulated data for the linear regression example ($y_i \sim \mbox{Normal}(\beta_0 + \beta_1x_i, \sigma)$) - with 100 observations of x=0 and 100 of x=1
+
+## Prior Predictive Distribution
+
+```{r, echo=FALSE}
+
+n = 1000
+
+sigma = bayesmeta::rhalfcauchy(n, scale = 2.5)
+#sigma = bayesmeta::rhalfnormal(n, scale = 2.5)
+beta_1 = rnorm(n, 0, 3)
+beta_2 = rnorm(n, 0, 3)
+
+prior_pred = function(b1,b2,s, n_each=100){
+  d1 = mean(rnorm(n_each, b1, s))
+  d2 = mean(rnorm(n_each, b1+b2, s))
+  return(c(d1,d2))
+}
+
+m=mapply(1:n, FUN = function(x) prior_pred(b1 = beta_1[x], b2 = beta_2[x], s = sigma[x]))
+
+plot(NA, xlim=c(0, 1), ylim=range(m), xlab="x", ylab="Average of 100 simulated observations (per group)", axes=F)
+invisible(apply(m, 2, function(x) points(c(0,1), x, type="b", col=rgb(.2,.2,.2,.2))))
+
+axis(2)
+axis(1, at=c(0,1))
+
+mtext("Prior predictive (with sigma ~ halfcauchy(2.5)", adj=0)
+
+```
+
+## Prior Predictive Distribution
+
+```{r, echo=FALSE}
+
+n = 1000
+
+#sigma = bayesmeta::rhalfcauchy(n, scale = 2.5)
+sigma = bayesmeta::rhalfnormal(n, scale = 2.5)
+beta_1 = rnorm(n, 0, 3)
+beta_2 = rnorm(n, 0, 3)
+
+m=mapply(1:n, FUN = function(x) prior_pred(b1 = beta_1[x], b2 = beta_2[x], s = sigma[x]))
+
+plot(NA, xlim=c(0, 1), ylim=range(m), xlab="x", ylab="Average of 100 simulated observations (per group)", axes=F)
+invisible(apply(m, 2, function(x) points(c(0,1), x, type="b", col=rgb(.2,.2,.2,.2))))
+
+axis(2)
+axis(1, at=c(0,1))
+
+mtext("Prior predictive (with sigma ~ halfnormal(2.5)", adj=0)
+
+```
+
+## Prior Predictive Distribution
+
+```{r, echo=FALSE}
+
+n = 1000
+
+#sigma = bayesmeta::rhalfcauchy(n, scale = 2.5)
+sigma = bayesmeta::rhalfnormal(n, scale = 2.5)
+beta_1 = rnorm(n, 0, 3)
+beta_2 = bayesmeta::rhalfnormal(n, scale = 3)
+
+m=mapply(1:n, FUN = function(x) prior_pred(b1 = beta_1[x], b2 = beta_2[x], s = sigma[x]))
+
+plot(NA, xlim=c(0, 1), ylim=range(m), xlab="x", ylab="Average of 100 simulated observations (per group)", axes=F)
+invisible(apply(m, 2, function(x) points(c(0,1), x, type="b", col=rgb(.2,.2,.2,.2))))
+
+axis(2)
+axis(1, at=c(0,1))
+
+mtext("Prior predictive (with b_1 ~ halfnormal(3)", adj=0)
+
+```
+
+## Prior Predictive Distribution
+
+- Do these plots look reasonable? Note we could (and should) have looked at other quantities of the simulated data (e.g., min, max, condition diffs)
+- Do they strike the balance of not putting too much prior weight on unlikely (in your expert opinion) outcomes while not being overly restrictive?
+- For psychologists, we'll usually have enough data to 'overwhelm' mildly informative priors
+
+
