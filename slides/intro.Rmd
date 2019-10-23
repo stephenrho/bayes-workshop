@@ -314,7 +314,7 @@ Image from [here](https://www.psychstatistics.com/2014/12/27/d-lkj-priors/)
 
 > - Setting priors can be tricky (slide after next has useful links)
 > - When estimating parameters the main thing is to not be too restrictive (you want to let the data 'speak' and not rule out certain values without good reason)
-> - For complex models (e.g., those with transformations of prameters), assessing whether the prior actually expresses what we expect can be difficult
+> - For complex models (e.g., those with transformations of parameters), assessing whether the prior actually expresses what we expect can be difficult
 > - It can be useful to look at the *prior predictive distribution*, which is essentially many simulated data sets using parameters drawn from the prior (extra slides on this at the end)
 > - Typically, we will have enough data to 'overwhelm' the prior
 > - If you are worried that you do not, you can do sensitivity analyses (i.e., check how much your conclusions depend on the prior)
@@ -441,7 +441,7 @@ abline(v = 100, col="red", lty=2)
 > - Compare variation between different chains to variation within chains. When these are approximately equal we can claim to have converged on the target distribution
 > - This is measured via $\hat{R}$ and conventionally a value $< 1.1$ is considered converged
 > - $\hat{R}$ is also referred to as the Gelman-Rubin convergence diagnostic or the Potential Scale Reduction Factor (PSRF)
-> - The $\hat{R}$ calculated by brms/Stan is slighly different (also compares the beginning and end of the same chain; see Gelman et al., 2014, pages 284-286)
+> - The $\hat{R}$ calculated by brms/Stan is slightly different (also compares the beginning and end of the same chain; see Gelman et al., 2014, pages 284-286)
 
 ## Convergence
 

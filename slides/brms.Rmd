@@ -379,6 +379,23 @@ $$
 
 # Do things with posterior samples
 
+## `hypothesis`
+
+- Savage-Dickey density ratio (requires `sample_prior = T or "yes"` in `brm()`)
+
+```{r}
+(m3_sd = hypothesis(x = m3, hypothesis = "Days = 0"))
+```
+
+## `hypothesis`
+
+- The posterior doesn't overlap zero (which gives `Evid.Ratio = 0`)
+- There are better examples in the other example scripts...
+
+```{r, fig.height=3, fig.width=6}
+plot(m3_sd)
+```
+
 ## Extract samples - `posterior_samples`
 
 ```{r}
@@ -386,7 +403,7 @@ m3_days = posterior_samples(m3, pars = "b_Days")[,1]
 ```
 
 ```{r, echo=F}
-hist(m3_days, breaks = 30, border = F, col="lightblue", main="Change in Reaction per  (m3)", xlab="", ylab="", axes=F)
+hist(m3_days, breaks = 30, border = F, col="lightblue", main="Change in Reaction per Day (m3)", xlab="", ylab="", axes=F)
 axis(1)
 lines(x = quantile(m3_days, probs = c(.025, .975)), y=c(0,0), lwd=3)
 text(mean(m3_days), 60, labels = sprintf("Mean + 95%% CI:\n%.2f [%.2f, %.2f]",
