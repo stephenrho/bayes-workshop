@@ -117,10 +117,11 @@ hist(Y, xlab='', main=sprintf("M = %.2f, SD = %.2f", mean(Y), sd(Y)), breaks = 1
 ## Likelihood
 
 $$
-p(\mathbf{\theta \mid y}) = \prod^i f(\theta \mid y_i)
+L(\mathbf{\theta \mid y}) = \prod^i f(\theta \mid y_i)
 $$
 
 - For this example we can assume the observations are independent and $f$ is the normal pdf
+- $L(\theta \mid y) \propto p(y \mid \theta)$
 - For an introduction, see [Etz (2018)](https://journals.sagepub.com/doi/pdf/10.1177/2515245917744314)
 
 ## Likelihood
@@ -132,9 +133,8 @@ In `R`:
 prod(dnorm(x = Y, mean = 5, sd = 10)) # or exp(sum(dnorm(Y, 5, 10, log = T)))
 ```
 
-If we were doing maximum likelihood estimation we could use `optim` to search for the parameters that maximize the above (or minimize the negative log likelihood).
-
-For Bayesian estimation we use the likelihood to *update* our prior beliefs in different parameter values.
+- If we were doing maximum likelihood estimation we could use `optim` to search for the parameters that maximize the above (or minimize the negative log likelihood)
+- For Bayesian estimation we use the likelihood to *update* our prior beliefs in different parameter values
 
 ## Likelihood
 
@@ -293,7 +293,7 @@ If we had strong reason to expect that $y$ should increase with $x$ we could ins
 ## Prior - correlation
 
 - For lme models with correlated random effects, we'll need a prior for the correlation matrix (in other work you might see people put a prior on the covariance matrix)
-- `brms` and `Stan` use the LJK prior (after [Lewandowski Kurowicka, & Joe, 2009](https://www.sciencedirect.com/science/article/pii/S0047259X09000876))
+- `brms` and `Stan` use the LKJ prior (after [Lewandowski, Kurowicka, & Joe, 2009](https://www.sciencedirect.com/science/article/pii/S0047259X09000876))
 - It has one parameter, $\eta$ (shape)
 
 ## Prior - correlation
@@ -324,7 +324,7 @@ Image from [here](https://www.psychstatistics.com/2014/12/27/d-lkj-priors/)
 > - For model comparison and particularly hypothesis testing with Bayes factors priors should be selected much more carefully
 > - The different models you are comparing are defined by their priors
 > - So they should reflect reasonable alternatives
-> - For example, comparing a model with a parameter (e.g., mean difference) to one without, if the prior on the parameter is very diffuse (e.g., a normal with large SD) you will likely get strong evidence for the null
+> - For example, comparing a model with a parameter (e.g., mean difference) to one without (null), if the prior on the parameter is very diffuse (e.g., a normal with large SD) you will likely get strong evidence for the null
 
 ## Useful papers/ links on priors
 
@@ -374,8 +374,8 @@ library(coda)
 - Burn in (or warm up)
 - Auto-correlation
 - Effective Sample Size (ESS)
-- **Convergence and the Potential Scale Reduction Factor (PSRF)**
 - Thinning
+- **Convergence and the Potential Scale Reduction Factor (PSRF)**
 
 ## Burn in (or warm up)
 
@@ -418,6 +418,37 @@ ESS = \frac{N}{1 + 2\sum_{k = 1}^{\infty} \rho_k}
 $$
 
 Where $\rho_k$ is the auto-correlation at lag $k$. Think of this as dividing the number of samples by the amount of auto-correlation. In practice the sum stops when the auto-correlation is small (e.g. $\rho_k < 0.05$; see Kruschke, 2015, p. 184).
+
+## Thinning
+
+```{r, echo=FALSE, fig.width=10}
+
+par(mfrow=c(1,2))
+
+samples8 = metropolis_iq(y = Y, prior_mean = prior_m, prior_sd = prior_sd, proposal_sd = .5, n_samples = 10000, start = 110)
+
+plot(samples8, xlab = "Step", ylab = bquote(mu), main = "Full Chain", type="l", col="blue")
+
+plot(samples8[seq(1, 10000, 10)], xlab = "Step", ylab = bquote(mu), main = "Keep every 10th sample", type="l", col="blue")
+
+```
+
+## Thinning
+
+```{r, echo=FALSE, fig.width=10}
+
+par(mfrow=c(1,2))
+
+autocorr.plot(as.mcmc(samples8), auto.layout = F, main = "Full Chain")
+autocorr.plot(as.mcmc(samples8[seq(1, 10000, 100)]), auto.layout = F, main = "Keep every 10th sample")
+
+```
+
+## Thinning
+
+- If auto-correlation is really bad thinning might help, but it might suggest deeper problems with your model (see Gelman et al., 2014)
+- It has been claimed that thinning is "often unnecessary and always inefficient" ([Link & Eaton, 2012](https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/j.2041-210X.2011.00131.x))
+- Often it is better to keep the full chains
 
 ## Convergence
 
@@ -467,37 +498,6 @@ R_hat = round(gelman.diag(mcmc.list(as.mcmc(samples5), as.mcmc(samples7)))$psrf[
 text(x = 600, y = 118, labels = bquote(hat(R) %~~% .(R_hat)))
 
 ```
-
-## Thinning
-
-```{r, echo=FALSE, fig.width=10}
-
-par(mfrow=c(1,2))
-
-samples8 = metropolis_iq(y = Y, prior_mean = prior_m, prior_sd = prior_sd, proposal_sd = .5, n_samples = 10000, start = 110)
-
-plot(samples8, xlab = "Step", ylab = bquote(mu), main = "Full Chain", type="l", col="blue")
-
-plot(samples8[seq(1, 10000, 10)], xlab = "Step", ylab = bquote(mu), main = "Keep every 10th sample", type="l", col="blue")
-
-```
-
-## Thinning
-
-```{r, echo=FALSE, fig.width=10}
-
-par(mfrow=c(1,2))
-
-autocorr.plot(as.mcmc(samples8), auto.layout = F, main = "Full Chain")
-autocorr.plot(as.mcmc(samples8[seq(1, 10000, 100)]), auto.layout = F, main = "Keep every 10th sample")
-
-```
-
-## Thinning
-
-- If auto-correlation is really bad thinning might help, but it might suggest deeper problems with your model (see Gelman et al., 2014)
-- It has been claimed that thinning is "often unnecessary and always inefficient" ([Link & Eaton, 2012](https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/j.2041-210X.2011.00131.x))
-- Often it is better to keep the full chains
 
 # Posterior Predictive Checking
 

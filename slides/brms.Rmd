@@ -76,7 +76,7 @@ legend(0, 500, legend = c("Individual", "Average"), col = c("grey", "red"), pch 
 
 ## `get_prior()`
 
-Given an model formula you can find the parameters to set priors for via (below are the defaults used by brms):
+Given a model formula you can find the parameters to set priors for via (below are the defaults used by brms):
 
 ```{r}
 get_prior(Reaction ~ Days, data = sleepstudy, family = gaussian)
@@ -497,6 +497,7 @@ with(aggregate(Reaction~Days, FUN = mean, data = sleepstudy), points(Days+1, Rea
 ```
 
 Could be:
+
 - The steps taken are too big; in which case, increase `adapt_delta`
 - The model needs to be reparameterized (in which case the above will not help. More [here](https://mc-stan.org/docs/2_18/stan-users-guide/reparameterization-section.html))
 
@@ -694,7 +695,7 @@ fit1 <- brm(y | trunc(lb = 0, ub = 100) ~ x, data = dat)
 From brms-example1.R
 
 - For an ordinal predictor we can treat it as a monotonic predictor where differences between adjacent levels are not assumed to be equal
-- Instead `mo()` allows you to model the effect of the predictor to be monotonically increasing or decreasing (but not linear)
+- Instead `mo()` allows you to model the effect of the predictor as monotonically increasing or decreasing (but not linear)
 - see `vignette("brms_monotonic")` for more
 
 ```r

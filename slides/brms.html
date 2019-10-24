@@ -117,7 +117,7 @@ slide:not(.current) .plotly.html-widget{
       <h1 data-config-title><!-- populated from slide_config.json --></h1>
       <h2 data-config-subtitle><!-- populated from slide_config.json --></h2>
       <p data-config-presenter><!-- populated from slide_config.json --></p>
-            <p style="margin-top: 6px; margin-left: -2px;">Last updated: 2019-10-23</p>
+            <p style="margin-top: 6px; margin-left: -2px;">Last updated: 2019-10-24</p>
           </hgroup>
   </slide>
 
@@ -204,7 +204,7 @@ slide:not(.current) .plotly.html-widget{
 
 </article></slide><slide class=""><hgroup><h2><code>get_prior()</code></h2></hgroup><article  id="get_prior">
 
-<p>Given an model formula you can find the parameters to set priors for via (below are the defaults used by brms):</p>
+<p>Given a model formula you can find the parameters to set priors for via (below are the defaults used by brms):</p>
 
 <pre class = 'prettyprint lang-r'>get_prior(Reaction ~ Days, data = sleepstudy, family = gaussian)</pre>
 
@@ -736,7 +736,12 @@ m3_mean_pp = posterior_linpred(m3,
 <pre class = 'prettyprint lang-r'>1: There were 15 divergent transitions after warmup. Increasing adapt_delta above 0.8 may help. 
 2: Examine the pairs() plot to diagnose sampling problems</pre>
 
-<p>Could be: - The steps taken are too big; in which case, increase <code>adapt_delta</code> - The model needs to be reparameterized (in which case the above will not help. More <a href='https://mc-stan.org/docs/2_18/stan-users-guide/reparameterization-section.html' title=''>here</a>)</p>
+<p>Could be:</p>
+
+<ul>
+<li>The steps taken are too big; in which case, increase <code>adapt_delta</code></li>
+<li>The model needs to be reparameterized (in which case the above will not help. More <a href='https://mc-stan.org/docs/2_18/stan-users-guide/reparameterization-section.html' title=''>here</a>)</li>
+</ul>
 
 </article></slide><slide class=""><hgroup><h2>Divergent transitions</h2></hgroup><article  id="divergent-transitions-1">
 
@@ -852,7 +857,7 @@ Do not analyse the results!
 
 <ul>
 <li>For an ordinal predictor we can treat it as a monotonic predictor where differences between adjacent levels are not assumed to be equal</li>
-<li>Instead <code>mo()</code> allows you to model the effect of the predictor to be monotonically increasing or decreasing (but not linear)</li>
+<li>Instead <code>mo()</code> allows you to model the effect of the predictor as monotonically increasing or decreasing (but not linear)</li>
 <li>see <code>vignette(&quot;brms_monotonic&quot;)</code> for more</li>
 </ul>
 
