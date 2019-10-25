@@ -72,7 +72,7 @@ Given the data (and our prior knowledge),
 
 ## Purpose
 
-> - To re-allocate credibility over parameters values based on the observed data (Kruschke, 2015)
+> - To re-allocate credibility over parameter values based on the observed data (Kruschke, 2015)
 > - Given the observed data, what parameter values should we most strongly believe in?
 > - To obtain this we need to start with a model and some *prior* expectation as to the probability of certain parameter values in this model (more on this later)
 

@@ -88,7 +88,7 @@ We'll start with a simple model (not acknowledging the clustering in the data)
 
 ```r
 priors = c(set_prior("normal(500, 100)", class = "Intercept"),
-           set_prior("normal(0, 50)", class = "b"),
+           set_prior("normal(0, 50)", class = "b"), # fixed effect of 'Days'
            set_prior("cauchy(0, 50)", class = "sigma"))
 ```
 
@@ -179,7 +179,7 @@ yrep = posterior_predict(m1)
 dim(yrep) # row for each step in chain, column for each observation
 ```
 
-## `bayesplot::pppc_stat`
+## `bayesplot::ppc_stat`
 
 ```{r}
 ppc_stat(y=sleepstudy$Reaction, yrep = yrep)
@@ -218,7 +218,7 @@ head(x$Days)
 ```r
 # need to add a prior for the random participant effect
 priors = c(priors,
-           set_prior("cauchy(0, 100)", class = "sd"))
+           set_prior("cauchy(0, 100)", class = "sd")) # SD of random intercept
 
 m2 = brm(Reaction ~ Days + (1 | Subject), data = sleepstudy, 
          family = gaussian, 
@@ -272,7 +272,7 @@ parnames(m2)
 
 ```r
 priors = c(priors,
-           set_prior("lkj(1)", class = "cor"))
+           set_prior("lkj(1)", class = "cor")) # uniform prior on correlation
            
 m3 = brm(Reaction ~ Days + (1 + Days | Subject), 
          data = sleepstudy, family = gaussian, 
