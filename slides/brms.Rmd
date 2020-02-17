@@ -25,7 +25,7 @@ load("../examples/brms-example1.RData")
 > - Allows fitting of a huge range of models using `R`'s formula syntax
 > - These slides aim to introduce the main functions
 
-## R formula syntax refresher
+## R formula syntax
 
 |  term  | meaning | 
 | :------: | -------: |
@@ -47,8 +47,8 @@ brm(formula, data, family = gaussian(), prior = NULL,
 
 see `?brm` for more
 
-- We'll work through an example with the `sleepstudy` data set from `lme4` (in examples/sleepstudy.csv)
-- Full example in examples/brms-example1.R
+- We'll work through an example with the `sleepstudy` data set from `lme4` (in `examples/sleepstudy.csv`)
+- Example code in `examples/brms-example1.R`
 
 ## sleepstudy
 
@@ -82,7 +82,7 @@ Given a model formula you can find the parameters to set priors for via (below a
 get_prior(Reaction ~ Days, data = sleepstudy, family = gaussian)
 ```
 
-We'll start with a simple model (not acknowledging the clustering in the data)
+We'll start with a *complete pooling* model (not acknowledging the clustering in the data)
 
 ## `set_prior()`
 
@@ -100,13 +100,13 @@ priors = set_prior("normal(500, 100)", class = "Intercept") +
            set_prior("cauchy(0, 50)", class = "sigma")
 ```
 
-## `brm()` - sample prior
+## `brm()` - sample from the prior distribution
 
 ```r
 p1 = brm(Reaction ~ Days, data = sleepstudy, 
          family = gaussian, 
-         prior=priors,
-         sample_prior="only")
+         prior = priors,
+         sample_prior = "only")
 ```
 
 ## Prior Predictive Distribution
@@ -131,8 +131,8 @@ marginal_effects(p1, method="predict")
 ```r
 m1 = brm(Reaction ~ Days, data = sleepstudy, 
          family = gaussian, 
-         prior=priors,
-         save_all_pars=T)
+         prior = priors,
+         save_all_pars = T)
 ```
 
 ## `brmsfit` object
@@ -144,22 +144,24 @@ summary(m1)
 ## `brmsfit` object 
 
 ```{r}
-fixef(m1)
-```
+fixef(m1) # fixed effects
 
-```{r}
-rhat(m1)
+VarCorr(m1) # residual SD
+
+rhat(m1) # R hat statistic (convergence)
 ```
 
 ## `brmsfit` object 
 
 ```{r}
-plot(m1)
+plot(m1) # plot posterior samples
 ```
 
 # Posterior predictive checks and marginal effects
 
 ## `pp_check`
+
+Compare the distribution of the data with distributions generated from the model 
 
 ```{r}
 pp_check(m1, nsamples = 100)
@@ -182,46 +184,50 @@ dim(yrep) # row for each step in chain, column for each observation
 ## `bayesplot::ppc_stat`
 
 ```{r}
-ppc_stat(y=sleepstudy$Reaction, yrep = yrep)
+ppc_stat(y = sleepstudy$Reaction, yrep = yrep) # stat = "mean" by default
 ```
 
 ## `bayesplot::ppc_stat`
 
 ```{r}
-ppc_stat(y=sleepstudy$Reaction, yrep = yrep, stat = "min")
+ppc_stat(y = sleepstudy$Reaction, yrep = yrep, stat = "min")
 ```
 
 ## `bayesplot::ppc_stat_grouped`
 
 ```{r, fig.height=4, fig.width=8}
-ppc_stat_grouped(y=sleepstudy$Reaction, yrep = yrep, 
+ppc_stat_grouped(y = sleepstudy$Reaction, yrep = yrep, 
                  group = sleepstudy$Subject)
 ```
 
 ## `marginal_effects`
 
+We can plot the fitted regression line
+
 ```{r}
-x = marginal_effects(m1)
-plot(x)
+marg_eff1 = marginal_effects(m1)
+plot(marg_eff1)
 ```
 
 ## `marginal_effects`
 
+`marginal_effects` also returns a data frame with median (estimate__) and 95% credible intervals (lower__, upper__) for different predictor values
+
 ```{r}
-head(x$Days)
+head(marg_eff1$Days)
 ```
 
-# Models with random effects
+# Models with random effects | Introducing partial pooling
 
-## m2: random intercept
+## Model 2: random intercept
 
 ```r
 # need to add a prior for the random participant effect
 priors = c(priors,
            set_prior("cauchy(0, 100)", class = "sd")) # SD of random intercept
 
-m2 = brm(Reaction ~ Days + (1 | Subject), data = sleepstudy, 
-         family = gaussian, 
+m2 = brm(Reaction ~ Days + (1 | Subject), 
+         data = sleepstudy, family = gaussian, 
          prior=priors)
 ```
 
@@ -236,6 +242,14 @@ $$
 
 ```{r}
 summary(m2)
+```
+
+## Model 2
+
+```{r}
+fixef(m2) # fixed effects
+
+VarCorr(m2) # Subject intercept and residual SDs
 ```
 
 ## more `marginal_effects`
@@ -296,13 +310,21 @@ $$
 
 See [here](https://mc-stan.org/docs/2_18/stan-users-guide/multivariate-hierarchical-priors-section.html) for more detail on multivariate priors
 
-## m3: random intercept + slope
+## Model 3: random intercept + slope
 
 ```{r}
 summary(m3)
 ```
 
-## m3: random intercept + slope
+## Model 3: random intercept + slope
+
+```{r}
+VarCorr(m3)$Subject$sd # random effects SDs
+
+VarCorr(m3)$Subject$cor # random effects correlation
+```
+
+## Model 3: random intercept + slope
 
 ```{r, fig.height=3, fig.width=5}
 plot(marginal_effects(m3, 
@@ -343,7 +365,7 @@ m3 = add_criterion(m3, c("loo", "waic", "marglik"))
 ```
 
 ```{r}
-loo_compare(m1,m2,m3) # or loo_compare(m1,m2,m3,criterion="waic")
+loo_compare(m1, m2, m3) # or loo_compare(m1,m2,m3,criterion="waic")
 ```
 
 - `abs(elpd_diff)` > 2*`se_diff` favors top model (more on loo [here](https://cran.r-project.org/web/packages/loo/vignettes/loo2-example.html#comparing-the-models-on-expected-log-predictive-density))
@@ -384,7 +406,7 @@ $$
 - Savage-Dickey density ratio (requires `sample_prior = T or "yes"` in `brm()`)
 
 ```{r}
-(m3_sd = hypothesis(x = m3, hypothesis = "Days = 0"))
+(m3_sav = hypothesis(x = m3, hypothesis = "Days = 0"))
 ```
 
 ## `hypothesis`
@@ -393,7 +415,7 @@ $$
 - There are better examples in the other example scripts...
 
 ```{r, fig.height=3, fig.width=6}
-plot(m3_sd)
+plot(m3_sav)
 ```
 
 ## Extract samples - `posterior_samples`

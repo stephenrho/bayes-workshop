@@ -1,0 +1,512 @@
+---
+title: "Mixed Effects Models"
+author: "Stephen Rhodes - srhodes@research.baycrest.org"
+date: 'Last updated: `r Sys.Date()`'
+output:
+  ioslides_presentation:
+    widescreen: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning = F, message = F)
+
+#library(lme4)
+
+load("../examples/brms-example1.RData")
+```
+
+## Overview
+
+- Linear model (lm) - when the observations are independent
+- Linear mixed effects model (lmer) - when observations are clustered
+- Generalized mixed effects model (glmer) - when the assumption of normality doesn't work
+
+## Linear model
+
+https://lindeloev.github.io/tests-as-linear/
+
+```{r, out.width = "70%", echo=F}
+knitr::include_graphics("https://lindeloev.github.io/tests-as-linear/linear_tests_cheat_sheet.png")
+```
+
+## Linear model
+
+```{r, echo=F}
+
+set.seed(123)
+
+n = 50
+x = runif(n, min = 0, max = 6)
+x = x[order(x)]
+y = 5 + x*2 + rnorm(n, sd = 3)
+plot(x,y, col=grey(level = .7))
+
+abline(lm(y~x))
+
+#summary(lm(y~x))
+
+ci = predict(lm(y~x), newdata = data.frame(x=x), interval = "confidence", level=.95)
+
+lines(x, ci[,2], lty=2, col="red")
+lines(x, ci[,3], lty=2, col="red")
+
+```
+
+## Linear model
+
+$$
+y_i = \beta_0 + \beta_1x_i + \epsilon_i \\
+\epsilon_i \sim \mbox{Normal}(0, \; \sigma^2)
+$$
+
+Equivalent,
+
+$$
+y_i \sim \mbox{Normal}(\beta_0 + \beta_1x_i, \; \sigma^2)
+$$
+
+## Linear model
+
+Another way of writing that scales to more predictors...
+
+```{r, out.width = "30%", echo=F}
+knitr::include_graphics("https://online.stat.psu.edu/stat462/sites/onlinecourses.science.psu.edu.stat462/files/05mlr/eq_matrix_notation/index.gif")
+```
+
+## Linear model 
+
+```{r}
+summary(lm(y ~ 1 + x)) # we will cover R's formula syntax later
+```
+
+## Linear model
+
+```{r, echo=F}
+
+plot(x,y, col=grey(level = .7))
+abline(lm(y~x))
+
+#summary(lm(y~x))
+
+# add confidence intervals
+ci = predict(lm(y~x), newdata = data.frame(x=x), interval = "confidence", level=.95)
+lines(x, ci[,2], lty=2, col="red")
+lines(x, ci[,3], lty=2, col="red")
+
+# add params
+text(x = 0.2, y = 12.5, bquote(beta[0]~"="~.(round(coef(lm(y~x))[1], 2))), adj=0)
+text(x = 3, y = 5, bquote(beta[1]~"="~.(round(coef(lm(y~x))[2], 2))), adj=0)
+text(x = 4.1, y = 18.5, bquote(sigma~"="~.(round(sigma(lm(y~x)), 2))), adj=0)
+
+```
+
+## Linear model
+
+The predictor (and outcome) don't have to be normally distributed - just the residuals ($\epsilon$)
+
+```{r, echo=F}
+
+# binary predictor
+set.seed(123)
+
+n = 50
+x = rep(c(0,1), each=n/2)
+x = x[order(x)]
+y = 5 + x*2 + rnorm(n, sd = 3)
+plot(x,y, col=grey(level = .7))
+
+abline(lm(y~x))
+
+ci = predict(lm(y~x), newdata = data.frame(x=x), interval = "confidence", level=.95)
+
+lines(x, ci[,2], lty=2, col="red")
+lines(x, ci[,3], lty=2, col="red")
+```
+
+## Linear model
+
+The predictor (and outcome) don't have to be normally distributed - just the residuals ($\epsilon$)
+
+```{r, echo=F}
+
+# skewed distributions
+set.seed(1234)
+x = rgamma(1000, 1, .1)
+y = -5 + .7*x + rnorm(1000, sd= 3)
+
+par(mar=c(3,3,2,2))
+layout(mat = cbind(c(1,2), c(3,3), c(4,5)))
+
+hist(x, breaks = 20, col="lightblue", border = F)
+hist(y, breaks = 20, col="lightgreen", border = F)
+
+plot(x,y, col=grey(.7))
+abline(lm(y~x))
+
+hist(resid(lm(y~x)), breaks = 15, col="pink", border=F, main="Residuals")
+
+plot(lm(y~x), which = 2, col=rgb(1, .2, .2, .5))
+abline(0,1)
+
+```
+
+# Linear mixed effects model
+
+## Linear mixed effects model
+
+- Simple linear model assumes *independently* distributed residuals
+- When data are *clustered* this is violated 
+- This is very common in our data (e.g., longitudinal studies, repeated measures in an experiment, students nested in schools, ...)
+- As an example we'll look at the `sleepstudy` data set from the `lme4` `R` package
+- Reaction time by days of sleep deprivation within participant
+
+## 6 sleepstudy participants
+
+```{r, echo=F}
+
+ids = c(308, 330, 337, 335, 351, 372)
+
+par(mfrow=c(2,3), mar=c(4,4,0,0)+.5)
+
+for (i in ids){
+  with(subset(sleepstudy, Subject==i), plot(Days, Reaction, ylim=c(200, 450)))
+}
+
+```
+
+## Two not great solutions
+
+1 - **No pooling -** fit a separate linear model for each participant
+
+```{r, echo=F}
+
+par(mfrow=c(2,3), mar=c(4,4,0,0)+.5)
+
+for (i in ids){
+  with(subset(sleepstudy, Subject==i), plot(Days, Reaction, ylim=c(200, 450)))
+  abline(with(subset(sleepstudy, Subject==i), lm(Reaction~Days)))
+}
+
+nopool = matrix(NA, nrow = length(unique(sleepstudy$Subject)), ncol=2)
+rownames(nopool) = unique(sleepstudy$Subject)
+colnames(nopool) = c("Intercept", "Slope")
+
+for (i in unique(sleepstudy$Subject)){
+  nopool[i,] = coef(with(subset(sleepstudy, Subject==i), lm(Reaction~Days)))
+}
+
+```
+
+## Two not great solutions
+
+2 - **Complete pooling -** ignore participant
+
+```{r, echo=F}
+with(sleepstudy, plot(Days, Reaction))
+abline(with(sleepstudy, lm(Reaction~Days)))
+```
+
+## Two not great solutions
+
+1. **No pooling -** ignores possible commonality across participants
+2. **Complete pooling -** doesn't account for individual differences
+
+## Linear mixed effects model
+
+- A compromise between 1 & 2 - **partial pooling**
+- Each participant gets their own coefficients (aka 'random effects')
+- But these are constrained by *population level* coefficients (aka 'fixed effects')
+
+## Linear mixed effects model
+
+- To start, we will just allow the intercept parameter to vary across participants
+- The assumption underlying this is that participants will differ in their baseline reaction times but the change in performance with sleep deprivation is the same across participants
+- To do this we add an extra component to our linear model: $b_{0j}$, where $j$ refers to participant
+
+## Random intercept
+
+$i$ = observations, $j$ = participants
+
+$$
+y_{i} = \beta_0 + \beta_1x_i + b_{0j[i]} + \epsilon_i \\
+b_{0j} \sim \mbox{Normal}(0, \; \sigma^2_{b0})
+$$
+
+- $\beta$ = fixed effects; $b$ = random effect
+- $j[i]$ can be interpreted as *the participant that observation* $i$ *came from* (from [Gelman and Hill, 2007](http://www.stat.columbia.edu/~gelman/arm/))
+- It is typical to assume that random effects are *centered on zero* (deviations from the mean)
+- The $\sigma_{b0}$ parameter is different to $\sigma$ (the SD of the residuals)
+- $\sigma_{b0}$ = average between participant difference in the fixed intercept
+
+## Random intercept
+
+$$
+y_{i} = \beta_1x_i + b_{0j[i]} + \epsilon_i \\
+b_{0j} \sim \mbox{Normal}(\beta_0, \; \sigma^2_{b0})
+$$
+
+- This achieves the same goal
+- But now the $b_{0j}$s are the intercepts for each participants
+- Instead of the *deviation* of the participant from the grand mean
+
+## Random intercept
+
+```{r}
+library(lme4)
+m1 = lmer(Reaction ~ Days + (1 | Subject), data = sleepstudy)
+summary(m1)$coefficients # also fixef(fit)
+```
+Intercept = $\beta_0$, Days = $\beta_1$
+
+```{r}
+summary(m1)$varcor
+```
+
+## Random intercept
+
+```{r, echo=F}
+re = coefficients(m1)$Subject
+
+par(mfrow=c(2,3), mar=c(4,4,0,0)+.5)
+
+for (i in as.character(ids)){
+  with(subset(sleepstudy, Subject==i), plot(Days, Reaction, ylim=c(200, 450)))
+  #abline(with(subset(sleepstudy, Subject==i), lm(Reaction~Days)))
+  
+  abline(re[i,1], re[i,2], col="blue", lwd=1.5)
+}
+```
+
+## Random intercept + slope
+
+$$
+y_{i} = \beta_0 + \beta_1x_i + b_{0j[i]} + b_{1j[i]}x_i + \epsilon_i
+$$
+
+- $b_{1j}$ allows the slope to vary across participants
+
+## Random intercept + slope
+
+$$
+y_{i} = \beta_0 + \beta_1x_i + b_{0j[i]} + b_{1j[i]}x_i + \epsilon_i
+$$
+
+$$
+\begin{pmatrix}
+b_{0j} \\
+b_{1j}
+\end{pmatrix} \sim MVN\left(\begin{pmatrix}
+0 \\
+0
+\end{pmatrix}, \; \Sigma
+\right).
+$$
+
+$$
+\Sigma = 
+\begin{bmatrix}
+\sigma^2_{b0} & \sigma_{b0}\sigma_{b1}\rho_{01} \\
+\sigma_{b0}\sigma_{b1}\rho_{01} & \sigma^2_{b1}
+\end{bmatrix}
+$$
+
+- We can assume that the participant effects come from a multivariate normal distribution
+- We could assume that the random intercept and slope are uncorrelated (i.e., reaction time at day 0 is unrelated to effect of sleep deprivation)
+- But here we're going to estimate the correlation $\rho_{01$
+
+<!--
+## Linear mixed effects model
+
+A different way of writing the model:
+
+$$
+y_{i} \sim \mbox{Normal}(b_{0j[i]} + b_{1j[i]}x_i, \; \sigma^2) \\
+$$
+
+$$
+\begin{pmatrix}
+b_{0j} \\
+b_{1j}
+\end{pmatrix} \sim MVN\left(\begin{pmatrix}
+\beta_0 \\
+\beta_1
+\end{pmatrix}, \; \Sigma
+\right).
+$$
+--> 
+
+## Random intercept + slope
+
+```{r}
+m2 = lmer(Reaction ~ Days + (1 + Days | Subject), data = sleepstudy)
+summary(m2)$coefficients # also fixef(fit)
+```
+
+```{r}
+summary(m2)$varcor
+```
+
+$\Sigma$ and $\sigma$
+
+## Random intercept + slope
+
+Participant level coefficients [(BLUPS)](https://en.wikipedia.org/wiki/Best_linear_unbiased_prediction)
+
+```{r}
+ranef(m2) # or coefficients (this sums fixef and ranef)
+```
+
+## Random intercept + slope
+
+```{r, echo=F}
+re = coefficients(m2)$Subject
+
+par(mfrow=c(2,3), mar=c(4,4,0,0)+.5)
+
+for (i in as.character(ids)){
+  with(subset(sleepstudy, Subject==i), plot(Days, Reaction, ylim=c(200, 450)))
+  abline(with(subset(sleepstudy, Subject==i), lm(Reaction~Days)))
+  
+  abline(re[i,1], re[i,2], col="blue", lwd=1.5)
+}
+
+legend("topright", legend = c("lm", "lmer"), lty=c(1,1), lwd=c(1,1.5),
+       col=c("black", "blue"), bty="n")
+
+```
+
+## The benefits of partial pooling
+
+- The data determine the level of pooling (via the variance of the random effects)
+- Coefficients are *shrunk* to the population means
+- Reduces the chances of overfitting to extreme observations (aka. regularization)
+- Fit population level and individual differences at the same time
+
+## Shrinkage
+
+```{r, echo=F}
+
+par(mfrow=c(1,2))
+
+plot(nopool, col="blue")
+points(re, col="red")
+
+for (i in 1:nrow(nopool)){
+  arrows(x0 = nopool[i,"Intercept"], y0 = nopool[i,"Slope"],
+         x1 = re[i,"(Intercept)"], y1 = re[i,"Days"], length = .1)
+}
+
+points(fixef(m2)[1], fixef(m2)[2], pch=4, cex=1.5, col="forestgreen")
+
+plot(NA, xlim=c(0,1), ylim=c(0,1), xlab="", ylab="", axes=F)
+
+legend("topleft", legend = c("No pooling (lm)", "Partial pooling (lmer)", "Fixed effects (lmer)"), 
+       pch=c(1,1,4), col = c("blue", "red", "forestgreen"), bty="n")
+
+```
+
+## Extending LME models
+
+- Multiple sources of clustering in a data set can be accounted for
+- For example, repeated observations from the same participants responding to the same items (e.g., stimuli, questions) - known as [crossed random effects](https://pure.mpg.de/rest/items/item_60973/component/file_60974/content)
+- Data for which the assumption of normality is not a good one...
+
+# Generalized mixed effects model
+
+## Generalized mixed effects model
+
+The normality assumption is not always appropriate:
+
+- accuracy
+- likert scales
+- diagnostic category
+- reaction time (constrained to be positive)
+
+But we can generalize much of what we have so far to other data types
+
+## Generalized mixed effects models
+
+$$
+y_i \sim Dist(\theta_{1i}, \; \theta_{2i}, \; ...)
+$$
+
+- $Dist$ = the *response distribution* with its family specific parameters, $\theta$
+- Often we will mostly be interested in modeling the location parameter (akin to the mean for the normal distribution)
+
+## Generalized mixed effects models
+
+$$
+y_i \sim Dist(\theta_{1i}, \; \theta_{2i})
+$$
+
+The model for the first parameter:
+
+$$
+\theta_{1i} = f(\pmb{X}\pmb{\beta} + \pmb{Z}\pmb{b})
+$$
+
+- $f$ is a *link function* - often used to map a parameter from an unbounded scale to the natural scale for the parameter (e.g., probabilities between 0 and 1)
+- $\pmb{X}$ and $\pmb{Z}$ are design matrices (contain the predictors for fixed and random effects)
+- $\pmb{\beta}$ and $\pmb{b}$ are vectors of fixed and random coefficients
+
+## Generalized mixed effects models
+
+In the previous normal example:
+
+- $Dist$ was a normal distribution
+- $\theta_1 = \mu$ and $\theta_2 = \sigma^2$
+- $f$ was the 'identity' function ($f(x) = x$; i.e., no transformation)
+
+## Logistic mixed effects model
+
+> - $y$ = the number of successes (e.g., correct responses) out of some total number of attempts
+> - $Dist$ is a binomial distribution (used to model number of successes/ correct out of number total)
+> - One family specific parameter to estimate, $p$, the probability of success
+> - $f$ is the *logistic function*, which maps real numbers on to probabilities (`plogis` in `R`). This is also the logistic distribution function
+> - If we had instead used the normal distribution function this would be 'probit' regression
+
+## Logistic mixed effects model
+
+$$
+y_i \sim \mbox{Binomial}(p_i, \; n_i)
+$$
+
+$$
+p_i = \mbox{logistic}(\pmb{X}\pmb{\beta} + \pmb{Z}\pmb{b})
+$$
+
+Important to note that the scale of the parameters will be log odds (logit)
+
+## Fitting mixed effects models
+
+> - **Maximum likelihood (ML) -** either solve or search for the parameters that the observed data are most probable under (we'll talk more about likelihood when discussing Bayes)
+> - **Restricted Maximum Likelihood (REML) -** in ML we use the estimated means to estimate the variance components (i.e., SDs of random effects) and consequently these are biased. REML attempts to account for the lost degrees of freedom when estimating the variability of random effects (think about why we divide by N-1 when calculating SD). Only available for normal models in `lme4`
+> - **Bayesian estimation -** via MCMC (much more later)
+
+This is obviously a very brief overview. Links to more detailed sources at the end
+
+## A final review of terminology
+
+There are many (often redundant) terms used when discussing mixed effects models
+
+> - **Mixed effects model-** a model that includes both fixed and random effects. In Bayesian analysis, hierarchical models is probably more popular 
+> - **Fixed & Random effects -** there are [variable definitions and some suggest not using this distinction](https://statmodeling.stat.columbia.edu/2005/01/25/why_i_dont_use/)
+>     - The typical interpretation (by psychologists) is that fixed effects are assumed to not vary across clusters (e.g., participants in an experiment), whereas random effects are assumed to vary
+>     - You may also come across [*population-level* and *varying* parameters](https://lindeloev.net/lets-rename-fixed-to-population-level-and-random-to-varying/)
+    
+## A final review of terminology
+
+> - **No pooling -** no sharing of information between clusters of observations (e.g., a separate linear model for each participant)
+> - **Complete pooling -** ignoring hierarchical structure in the data (e.g., fitting one linear model to observations nested within participants)
+> - **Partial pooling -** a compromise between no and complete pooling. Each cluster gets its own model but they are constrained by a population level distribution
+> - **Response distribution -** chosen to be appropriate to the type of data at hand (continuous, categorical, ordinal, skewed, etc...)
+> - **Link function -** a transformation applied to a parameter to make it easier to fit a straight line to it
+
+## Links 
+
+- [A Brief Introduction to Mixed-Effects Models](https://www.biorxiv.org/content/biorxiv/suppl/2016/07/06/062299.DC1/062299-1.pdf)
+- [More on shrinkage](http://doingbayesiandataanalysis.blogspot.com/2019/07/shrinkage-in-hierarchical-models-random.html)
+- [More on estimation. ML REML](https://www.mathworks.com/help/stats/estimating-parameters-in-linear-mixed-effects-models.html)
+- [Detailed paper on lme4](https://cran.r-project.org/web/packages/lme4/vignettes/lmer.pdf)
+- [Advanced mixed/multi-level models (Bayesian)](https://journal.r-project.org/archive/2018/RJ-2018-017/RJ-2018-017.pdf)
+

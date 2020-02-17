@@ -8,6 +8,9 @@
 ### 
 ### In the first model we don't model item effects.
 ### In model 2 we do. 
+### 
+### There are questions for you to complete through the
+### script. Answers are given at the end.
 ###
 ### This example demonstrates another brms model family 
 ### and extracting fitted values from model objects to perform
@@ -62,8 +65,12 @@ pp_check(m0, nsamples=100) # doesn't look great
 
 ## Model 1: we are going to ignore item variation ----
 
-get_prior(acc ~ group*condition + (1 + condition | id), data = dat, 
-          family = bernoulli(link = "logit"))
+# Q 1 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
+# some priors are specified below for model 1
+# how would we find out what priors we need for 
+# a particular model specification?
+
+
 
 priors = c(set_prior("normal(1, 2)", class = "Intercept"),
            set_prior("normal(0, 1)", class = "b"),
@@ -108,7 +115,13 @@ marginal_effects(m1)
 
 ## Model 2: include a random intercept for item ----
 
-m2 = brm(acc ~ group*condition + (1 + condition | id) + (1 | item), 
+# Q 2 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
+# We want to build on model 1 by accounting
+# for variation in performance attributable to 
+# item effects. The model formula isn't complete
+# how would you complete it?
+
+m2 = brm(acc ~ group*condition + (1 + condition | id), # <---- change this for Q 2
          data = dat, family = bernoulli(link = "logit"),
          prior=priors, 
          sample_prior = "yes", # for savage-dickey
@@ -121,8 +134,11 @@ pp_check(m2, nsamples=100)
 
 
 ## Compare models ----
-m1 = add_criterion(m1, c("loo", "waic", "marglik"))
-m2 = add_criterion(m2, c("loo", "waic", "marglik"))
+
+# Q 3 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
+# to compare the models using loo or Bayes factors
+# we need to add some extra stuff. How do you do that?
+
 
 loo_compare(m1, m2)
 m1$loo
@@ -229,6 +245,59 @@ hy_p=plot(hy)[[1]]
 # zoom in
 hy_p + ggplot2::coord_cartesian(xlim = c(-.2, .2))
 
+# Q 4
+# using model 2, test the hypothesis
+# that the effect of group is smaller 
+# than zero
+
+
 # uncomment line below to save objects
 # save.image("examples/brms-example2.RData")
+
+
+
+
+
+
+
+
+##### ANSWERS ------
+
+# Q 1
+# how to find priors for a particular model specification
+get_prior(acc ~ group*condition + (1 + condition | id), data = dat, 
+          family = bernoulli(link = "logit"))
+
+
+
+
+
+
+# Q 2
+# the model formula should be
+acc ~ group*condition + (1 + condition | id) + (1 | item)
+
+
+
+
+
+
+
+# Q 3
+# add information needed to compare models
+m1 = add_criterion(m1, c("loo", "waic", "marglik"))
+m2 = add_criterion(m2, c("loo", "waic", "marglik"))
+
+
+
+
+
+
+
+# Q 4
+# test directional effect of group
+(hy2 = hypothesis(m2, "group1 < 0"))
+
+plot(hy2)
+
 
