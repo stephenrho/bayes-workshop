@@ -1,7 +1,7 @@
 
 # Workshop: Bayesian analysis with R and brms
 
-Here are materials for a workshop on Bayesian analysis at Case Western Reserve University. An earlier version of was given that the Rotman Research Institute.
+Here are materials for a workshop on Bayesian analysis at Case Western Reserve University. An earlier version of this workshop was given that the Rotman Research Institute.
 
 For this workshop you will need:
 
@@ -70,9 +70,8 @@ This workshop assumes familiarity with:
 - The `R` language
 - Some probability distributions
 - Linear mixed effects models (users of `lme4` will have a head start)
---> 
+-->
 
 ## Contact
 
 Please send questions/ comments/ suggestions to: srhodes@research.baycrest.org
-
