@@ -163,7 +163,7 @@ plot(m1) # plot posterior samples
 
 Compare the distribution of the data with distributions generated from the model 
 
-```{r}
+```{r, fig.height=4}
 pp_check(m1, nsamples = 100)
 ```
 
@@ -204,7 +204,7 @@ ppc_stat_grouped(y = sleepstudy$Reaction, yrep = yrep,
 
 We can plot the fitted regression line
 
-```{r}
+```{r, fig.height=4}
 marg_eff1 = marginal_effects(m1)
 plot(marg_eff1)
 ```

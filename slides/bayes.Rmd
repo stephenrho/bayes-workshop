@@ -210,7 +210,7 @@ contour(x = sigma, y = mu, z = prior_mat, xlab=bquote(sigma), ylab=bquote(mu), n
 
 ```
 
-## $p(\theta \mid y) \propto p(\theta)p(y \mid \theta)$
+## Posterior is proportional to prior $\times$ likelihood
 
 ```{r, echo=F, fig.height=4, fig.width=9}
 

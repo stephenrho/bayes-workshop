@@ -17,9 +17,9 @@ load("../examples/brms-example1.RData")
 
 ## Overview
 
-- Linear model (lm) - when the observations are independent
-- Linear mixed effects model (lmer) - when observations are clustered
-- Generalized mixed effects model (glmer) - when the assumption of normality doesn't work
+- **Linear model (lm)** - when the observations are independent
+- **Linear mixed effects model (lmer)** - when observations are clustered (aka. hierarchical/ multi-level models)
+- **Generalized mixed effects model (glmer)** - when the assumption of normality doesn't work
 
 ## Linear model
 
@@ -232,11 +232,11 @@ y_{i} = \beta_0 + \beta_1x_i + b_{0j[i]} + \epsilon_i \\
 b_{0j} \sim \mbox{Normal}(0, \; \sigma^2_{b0})
 $$
 
-- $\beta$ = fixed effects; $b$ = random effect
-- $j[i]$ can be interpreted as *the participant that observation* $i$ *came from* (from [Gelman and Hill, 2007](http://www.stat.columbia.edu/~gelman/arm/))
-- It is typical to assume that random effects are *centered on zero* (deviations from the mean)
-- The $\sigma_{b0}$ parameter is different to $\sigma$ (the SD of the residuals)
-- $\sigma_{b0}$ = average between participant difference in the fixed intercept
+> - $\beta$ = fixed effects; $b$ = random effect
+> - $j[i]$ can be interpreted as *the participant that observation* $i$ *came from* (see [Gelman and Hill, 2007](http://www.stat.columbia.edu/~gelman/arm/))
+> - It is typical to assume that random effects are *centered on zero* (i.e., deviations from the mean)
+> - The $\sigma_{b0}$ parameter is different to $\sigma$ (the SD of the residuals)
+> - $\sigma_{b0}$ = average between participant difference in the fixed intercept
 
 ## Random intercept
 
@@ -246,7 +246,7 @@ b_{0j} \sim \mbox{Normal}(\beta_0, \; \sigma^2_{b0})
 $$
 
 - This achieves the same goal
-- But now the $b_{0j}$s are the intercepts for each participants
+- But now the $b_{0j}$s are the intercepts for each participant
 - Instead of the *deviation* of the participant from the grand mean
 
 ## Random intercept
@@ -312,7 +312,7 @@ $$
 
 - We can assume that the participant effects come from a multivariate normal distribution
 - We could assume that the random intercept and slope are uncorrelated (i.e., reaction time at day 0 is unrelated to effect of sleep deprivation)
-- But here we're going to estimate the correlation $\rho_{01$
+- But here we're going to estimate the correlation $\rho_{01}$
 
 <!--
 ## Linear mixed effects model
@@ -365,13 +365,13 @@ par(mfrow=c(2,3), mar=c(4,4,0,0)+.5)
 
 for (i in as.character(ids)){
   with(subset(sleepstudy, Subject==i), plot(Days, Reaction, ylim=c(200, 450)))
-  abline(with(subset(sleepstudy, Subject==i), lm(Reaction~Days)))
+  abline(with(subset(sleepstudy, Subject==i), lm(Reaction~Days)), col="blue")
   
-  abline(re[i,1], re[i,2], col="blue", lwd=1.5)
+  abline(re[i,1], re[i,2], col="red", lwd=1.5)
 }
 
 legend("topright", legend = c("lm", "lmer"), lty=c(1,1), lwd=c(1,1.5),
-       col=c("black", "blue"), bty="n")
+       col=c("blue", "red"), bty="n")
 
 ```
 
@@ -445,9 +445,9 @@ $$
 \theta_{1i} = f(\pmb{X}\pmb{\beta} + \pmb{Z}\pmb{b})
 $$
 
-- $f$ is a *link function* - often used to map a parameter from an unbounded scale to the natural scale for the parameter (e.g., probabilities between 0 and 1)
-- $\pmb{X}$ and $\pmb{Z}$ are design matrices (contain the predictors for fixed and random effects)
-- $\pmb{\beta}$ and $\pmb{b}$ are vectors of fixed and random coefficients
+> - $f$ is a *link function* - often used to map a parameter from an unbounded scale to the natural scale for the parameter (e.g., probabilities between 0 and 1)
+> - $\pmb{X}$ and $\pmb{Z}$ are design matrices (contain the predictors for fixed and random effects)
+> - $\pmb{\beta}$ and $\pmb{b}$ are vectors of fixed and random coefficients
 
 ## Generalized mixed effects models
 
@@ -456,6 +456,49 @@ In the previous normal example:
 - $Dist$ was a normal distribution
 - $\theta_1 = \mu$ and $\theta_2 = \sigma^2$
 - $f$ was the 'identity' function ($f(x) = x$; i.e., no transformation)
+
+## Logistic mixed effects model
+
+```{r, echo=F, fig.height=5, fig.width=5}
+dat <- read.csv("../examples/accuracy-data.csv")
+
+dat = within(dat, {
+  id = as.factor(id)
+  item = as.factor(item)
+  condition = as.factor(condition)
+  group = as.factor(group)
+})
+
+dat_agg = aggregate(acc ~ id + condition + group, data = dat, FUN = mean)
+
+dat_means = aggregate(acc ~ condition + group, data = dat, FUN = mean)
+
+## plot individuals and means...
+cols_l = viridis::viridis(2, begin = .2, end = .8, alpha = .5)
+cols_d = viridis::viridis(2, begin = .2, end = .8)
+
+ids = list()
+ids[[1]] = 1:20
+ids[[2]] = 21:40
+
+jitts = c(-.05, .05) # so groups are side-by-side
+
+plot(NA, xlim=c(.7, 2.3), ylim=c(0,1), xlab="Condition", ylab="Accuracy", axes=F)
+axis(1, at=1:2, labels = c("A", "B"))
+axis(2)
+
+for (g in c(1, 2)){
+  # individual data points
+  lapply(ids[[g]], function(x) with(subset(dat_agg, id==x), points(jitter(as.numeric(condition)+jitts[g], amount = .025), acc, pch=16, col=cols_l[g], type='p')))
+}
+for (g in c(1, 2)){
+  with(subset(dat_means, group==g), points(as.numeric(condition), acc, pch=21, bg=cols_d[g], type='b'))
+}
+legend(x = 1.5, y = .2, legend = c("1", "2"), pch = 21, pt.bg = cols_d, title = "Group", xjust = .5, yjust=.5, bty='n')
+
+```
+
+We will come back to this example later on (`brms-example2.R`)
 
 ## Logistic mixed effects model
 
@@ -481,7 +524,7 @@ Important to note that the scale of the parameters will be log odds (logit)
 
 > - **Maximum likelihood (ML) -** either solve or search for the parameters that the observed data are most probable under (we'll talk more about likelihood when discussing Bayes)
 > - **Restricted Maximum Likelihood (REML) -** in ML we use the estimated means to estimate the variance components (i.e., SDs of random effects) and consequently these are biased. REML attempts to account for the lost degrees of freedom when estimating the variability of random effects (think about why we divide by N-1 when calculating SD). Only available for normal models in `lme4`
-> - **Bayesian estimation -** via MCMC (much more later)
+> - **Bayesian estimation -** via MCMC (*much* more later)
 
 This is obviously a very brief overview. Links to more detailed sources at the end
 
@@ -489,7 +532,7 @@ This is obviously a very brief overview. Links to more detailed sources at the e
 
 There are many (often redundant) terms used when discussing mixed effects models
 
-> - **Mixed effects model-** a model that includes both fixed and random effects. In Bayesian analysis, hierarchical models is probably more popular 
+> - **Mixed effects model -** a model that includes both fixed and random effects. In Bayesian analysis, hierarchical (or multi-level) models is probably more popular 
 > - **Fixed & Random effects -** there are [variable definitions and some suggest not using this distinction](https://statmodeling.stat.columbia.edu/2005/01/25/why_i_dont_use/)
 >     - The typical interpretation (by psychologists) is that fixed effects are assumed to not vary across clusters (e.g., participants in an experiment), whereas random effects are assumed to vary
 >     - You may also come across [*population-level* and *varying* parameters](https://lindeloev.net/lets-rename-fixed-to-population-level-and-random-to-varying/)
