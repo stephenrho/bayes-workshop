@@ -68,6 +68,7 @@ pp_check(m1, nsamples = 100)
 
 # use the bayesplot package to do more focused PPCs
 
+y = sleepstudy$Reaction
 yrep = posterior_predict(m1)
 ppc_stat(y, yrep, stat = "mean")
 ppc_stat(y, yrep, stat = "sd")
