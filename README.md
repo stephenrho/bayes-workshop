@@ -74,4 +74,4 @@ This workshop assumes familiarity with:
 
 ## Contact
 
-Please send questions/ comments/ suggestions to: srhodes@research.baycrest.org
+Please send questions/ comments/ suggestions to: steverho89@gmail.com
